@@ -36,7 +36,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import pointsService from '../services/pointsService'
+import pointsService from '../services/CollectPointService.js'
 
 const mapEl = ref(null)
 let map = null

@@ -69,7 +69,7 @@ import NavBar from './NavBar.vue'
 import Footer from './Footer.vue'
 import DataCard from './DataCard.vue'
 import MapView from './MapView.vue'
-import collecteService from '../services/collecte.service.js'
+import collecteService from '../services/CollectPointService.js'
 import VehicleService from '../services/VehicleService.js'
 import EmployeeService from '../services/EmployeeService.js'
 

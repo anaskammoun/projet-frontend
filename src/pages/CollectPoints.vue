@@ -82,7 +82,7 @@
 
 <script setup>
 import DashboardLayout from "../layouts/DashboardLayout.vue"
-import collecteService from "../services/collecte.service.js"
+import collecteService from "../services/CollectPointService.js"
 import { ref, onMounted } from "vue"
 
 const points = ref([])
