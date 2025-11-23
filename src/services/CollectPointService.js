@@ -1,19 +1,10 @@
-import api from "./api";
+import axios from "axios";
+
+const API_URL = "http://localhost:8081/api/collect-points";
 
 export default {
-  getAll() {
-    return api.get("/collect-points");
-  },
-  getById(id) {
-    return api.get(`/collect-points/${id}`);
-  },
-  create(data) {
-    return api.post("/collect-points", data);
-  },
-  update(id, data) {
-    return api.put(`/collect-points/${id}`, data);
-  },
-  delete(id) {
-    return api.delete(`/collect-points/${id}`);
-  }
-};
+  getAll: () => axios.get(API_URL),
+  create: (payload) => axios.post(API_URL, payload),
+  update: (id, payload) => axios.put(`${API_URL}/${id}`, payload),
+  delete: (id) => axios.delete(`${API_URL}/${id}`)
+}
