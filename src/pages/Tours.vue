@@ -11,7 +11,7 @@
 					<th>Date</th>
 					<th>Points collecte</th>
 					<th>Véhicule</th>
-					<th>Employé</th>
+					<th>Employés</th>
 					<th>Statut</th>
 					<th>Distance (km)</th>
 					<th>Actions</th>
@@ -22,7 +22,7 @@
 					<td>{{ formatDate(t.date) }}</td>
 					<td>{{ (t.collectPoints || []).length }}</td>
 					<td>{{ findVehicleName(t.vehicleId) }}</td>
-					<td>{{ findEmployeeName(t.employeeId) }}</td>
+					<td>{{ displayEmployees(t) }}</td>
 					<td>{{ t.status }}</td>
 					<td>{{ t.estimatedDistance ?? '-' }}</td>
 					<td>
@@ -35,6 +35,7 @@
 
 		<div v-if="showForm" class="card mt-4 p-3">
 			<h5>{{ editingId ? 'Modifier tournée' : 'Créer tournée' }}</h5>
+			<div v-if="!isCreateValid" class="text-danger mb-2">Veuillez sélectionner au moins un employé ou un point de collecte.</div>
 			<form @submit.prevent="save">
 				<div class="row">
 					<div class="col-md-6 mb-3">
@@ -52,18 +53,13 @@
 
 				<div class="mb-3">
 					<label class="form-label">Points de collecte (sélection multiple)</label>
-					<select v-model="form.collectPoints" class="form-select" multiple size="6">
-						<option v-for="p in allPoints" :key="p.id" :value="p.id">{{ p.wasteType }} — {{ p.id }}</option>
-					</select>
+					<SearchMultiSelect v-model="form.collectPoints" :items="allPointsForSelect" placeholder="Rechercher un point..." :size="6" />
 				</div>
 
 				<div class="row">
 					<div class="col-md-6 mb-3">
-						<label class="form-label">Employé</label>
-						<select v-model="form.employeeId" class="form-select">
-							<option value="">-- Aucun --</option>
-							<option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option>
-						</select>
+						<label class="form-label">Employés (disponibles) — sélection multiple</label>
+						<SearchMultiSelect v-model="form.employeeIds" :items="availableEmployeesForSelect" placeholder="Rechercher un employé..." :size="6" />
 					</div>
 					<div class="col-md-3 mb-3">
 						<label class="form-label">Statut</label>
@@ -80,7 +76,7 @@
 				</div>
 
 				<div class="d-flex gap-2">
-					<button class="btn btn-success" type="submit">Enregistrer</button>
+					<button class="btn btn-success" type="submit" :disabled="!isCreateValid">Enregistrer</button>
 					<button class="btn btn-secondary" type="button" @click="cancel">Annuler</button>
 				</div>
 			</form>
@@ -94,7 +90,8 @@ import TourService from '../services/TourService.js'
 import CollectPointService from '../services/CollectPointService.js'
 import VehicleService from '../services/VehicleService.js'
 import EmployeeService from '../services/EmployeeService.js'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import SearchMultiSelect from '../components/SearchMultiSelect.vue'
 
 const tours = ref([])
 const allPoints = ref([])
@@ -103,7 +100,16 @@ const employees = ref([])
 
 const showForm = ref(false)
 const editingId = ref(null)
-const form = ref({ dateLocal: '', collectPoints: [], vehicleId: '', employeeId: '', status: 'planifiée', estimatedDistance: 0 })
+const form = ref({ dateLocal: '', collectPoints: [], vehicleId: '', employeeIds: [], status: 'planifiée', estimatedDistance: 0 })
+const formError = ref('')
+
+const isCreateValid = computed(() => {
+	// when editing, allow empty (validation only required on create)
+	if (editingId.value) return true
+	const hasPoints = Array.isArray(form.value.collectPoints) && form.value.collectPoints.length > 0
+	const hasEmployees = Array.isArray(form.value.employeeIds) && form.value.employeeIds.length > 0
+	return hasPoints || hasEmployees
+})
 
 function formatDate(ts) {
 	if (!ts) return '-'
@@ -129,7 +135,28 @@ function fromLocalInput(local) {
 }
 
 function findVehicleName(id) { const v = vehicles.value.find(x=>x.id===id); return v ? (v.type || v.immatriculation || v.id) : '-' }
+
 function findEmployeeName(id) { const e = employees.value.find(x=>x.id===id); return e ? (e.name || e.id) : '-' }
+
+function displayEmployees(t) {
+	const ids = t.employeeIds && t.employeeIds.length ? t.employeeIds : (t.employeeId ? [t.employeeId] : [])
+	if (!ids || ids.length === 0) return '-'
+	const names = ids.map(id => {
+		const e = employees.value.find(x => x.id === id)
+		return e ? (e.name || e.id) : id
+	})
+	return names.join(', ')
+}
+
+const availableEmployees = computed(() => employees.value.filter(e => e.available))
+
+const allPointsForSelect = computed(() => {
+	return allPoints.value.map(p => ({ id: p.id, label: `${p.wasteType || '-'} — ${p.id}` }))
+})
+
+const availableEmployeesForSelect = computed(() => {
+	return availableEmployees.value.map(e => ({ id: e.id, label: e.name || e.id }))
+})
 
 async function loadAll() {
 	try {
@@ -148,31 +175,39 @@ async function loadAll() {
 
 onMounted(loadAll)
 
-function openAdd(){ editingId.value=null; form.value={ dateLocal:'', collectPoints:[], vehicleId:'', employeeId:'', status:'planifiée', estimatedDistance:0 }; showForm.value=true }
+function openAdd(){ editingId.value=null; form.value={ dateLocal:'', collectPoints:[], vehicleId:'', employeeIds:[], status:'planifiée', estimatedDistance:0 }; showForm.value=true }
 
 function openEdit(t){
-	editingId.value = t.id
-	form.value = {
-		dateLocal: toLocalInput(t.date),
-		collectPoints: t.collectPoints ? [...t.collectPoints] : [],
-		vehicleId: t.vehicleId || '',
-		employeeId: t.employeeId || '',
-		status: t.status || 'planifiée',
-		estimatedDistance: t.estimatedDistance ?? 0
-	}
-	showForm.value = true
+    editingId.value = t.id
+    form.value = {
+        dateLocal: toLocalInput(t.date),
+        collectPoints: t.collectPoints ? [...t.collectPoints] : [],
+        vehicleId: t.vehicleId || '',
+        employeeIds: t.employeeIds ? [...t.employeeIds] : (t.employeeId ? [t.employeeId] : []),
+        status: t.status || 'planifiée',
+        estimatedDistance: t.estimatedDistance ?? 0
+    }
+    showForm.value = true
 }
 
 function cancel(){ showForm.value=false }
 
 async function save(){
 	try{
+		// validate on create: require at least one employee or one collect point
+		formError.value = ''
+		if (!isCreateValid.value) {
+			formError.value = 'Veuillez sélectionner au moins un employé ou un point de collecte.'
+			return
+		}
+		const employeeIds = Array.isArray(form.value.employeeIds) ? form.value.employeeIds : (form.value.employeeIds ? [form.value.employeeIds] : [])
 		const payload = {
 			date: fromLocalInput(form.value.dateLocal),
 			collectPoints: Array.isArray(form.value.collectPoints) ? form.value.collectPoints : [],
 			vehicleId: form.value.vehicleId || null,
-			employeeId: form.value.employeeId || null,
-			status: form.value.status,
+			employeeIds: employeeIds,
+			employeeId: employeeIds.length ? employeeIds[0] : null,
+			status: form.value.status || 'planifiée',
 			estimatedDistance: Number(form.value.estimatedDistance) || 0
 		}
 		if(editingId.value) await TourService.update(editingId.value, payload)
