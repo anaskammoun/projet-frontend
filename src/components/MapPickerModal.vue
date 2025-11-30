@@ -31,11 +31,19 @@ const props = defineProps({
 
 const emit = defineEmits(['update:show', 'picked', 'cancel'])
 
-const selected = ref({ latitude: props.initialLat, longitude: props.initialLng })
+// Utilitaire pour arrondir à 6 chiffres après la virgule
+function round6(num) {
+  return typeof num === 'number' ? Number(num.toFixed(6)) : null
+}
+
+const selected = ref({ 
+  latitude: round6(props.initialLat), 
+  longitude: round6(props.initialLng) 
+})
 
 watch(() => [props.initialLat, props.initialLng], ([lat, lng]) => {
-  selected.value.latitude = typeof lat === 'number' ? lat : null
-  selected.value.longitude = typeof lng === 'number' ? lng : null
+  selected.value.latitude = round6(lat)
+  selected.value.longitude = round6(lng)
 })
 
 function close() {
@@ -44,23 +52,24 @@ function close() {
 }
 
 function confirm() {
-  emit('picked', { latitude: selected.value.latitude, longitude: selected.value.longitude })
+  emit('picked', { 
+    latitude: round6(selected.value.latitude), 
+    longitude: round6(selected.value.longitude) 
+  })
   emit('update:show', false)
 }
 
 function clear() {
   selected.value.latitude = null
   selected.value.longitude = null
-  // also tell child map to clear by emitting nulls — MapView will set marker to null
-  // we can rely on selected change via the child update already
 }
 
 function onPicked(payload) {
-  // payload: { latitude, longitude } or nulls
-  selected.value.latitude = typeof payload.latitude === 'number' ? payload.latitude : null
-  selected.value.longitude = typeof payload.longitude === 'number' ? payload.longitude : null
+  selected.value.latitude = round6(payload.latitude)
+  selected.value.longitude = round6(payload.longitude)
 }
 </script>
+
 
 <style scoped>
 .picker-backdrop { position: fixed; inset: 0; display:flex; justify-content:center; align-items:center; background: rgba(0,0,0,0.4); z-index: 99999; padding: 16px }
