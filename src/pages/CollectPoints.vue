@@ -3,9 +3,9 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Points de collecte</h2>
     <div>
-  <button class="btn btn-primary me-2" @click="openAdd">Ajouter</button>
-  <button v-if="!simulationRunning" class="btn btn-success" @click="startRealtimeUpdate">Démarrer simulation</button>
-  <button v-else class="btn btn-danger" @click="stopRealtimeUpdate">Arrêter simulation</button>
+  <button type="button" class="btn btn-primary me-2" @click="openAdd">Ajouter</button>
+  <button type="button" v-if="!simulationRunning" class="btn btn-success" @click="startRealtimeUpdate">Démarrer simulation</button>
+  <button type="button" v-else class="btn btn-danger" @click="stopRealtimeUpdate">Arrêter simulation</button>
 </div>
     </div>
 
@@ -26,10 +26,10 @@
           <td>{{ p.capacityLiters ?? '-' }}</td>
           <td>{{ p.maxCapacityLiters ?? '-' }}</td>
           <td>{{ computeStatus(p) }}</td>
-          <td>{{ p.latitude ?? '-' }}, {{ p.longitude ?? '-' }}</td>
+          <td>{{ formatCoordinate(p.latitude) }}, {{ formatCoordinate(p.longitude) }}</td>
           <td>
-            <button class="btn btn-sm btn-warning me-1" @click="openEdit(p)">Modifier</button>
-            <button class="btn btn-sm btn-danger" @click="remove(p.id)">Supprimer</button>
+            <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(p)">Modifier</button>
+            <button type="button" class="btn btn-sm btn-danger" @click="remove(p.id)">Supprimer</button>
           </td>
         </tr>
       </tbody>
@@ -39,7 +39,7 @@
     <transition name="modal-slide">
       <div v-if="showForm" class="modal-backdrop" @click.self="cancel">
         <div class="modal-content">
-          <button class="close-btn" @click="cancel">&times;</button>
+          <button type="button" class="close-btn" @click="cancel">&times;</button>
           <h5 class="mb-3">{{ editingId ? 'Modifier point' : 'Ajouter point' }}</h5>
           <form @submit.prevent="save">
             <div class="row">
@@ -69,10 +69,10 @@
                 <div class="d-flex justify-content-between align-items-center">
                   <div class="small text-muted">Ou choisissez sur la carte :</div>
                   <div>
-                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @click.prevent="showMapPicker = !showMapPicker">
-                      {{ showMapPicker ? 'Fermer la carte' : 'Ouvrir la carte' }}
+                    <button type="button" class="btn btn-outline-primary btn-sm me-2" @click.prevent="openMapPicker">
+                      Ouvrir la carte
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @click.prevent="onCoordinatePicked({ latitude: null, longitude: null })">Effacer</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @click.prevent="clearCoordinates">Effacer</button>
                   </div>
                 </div>
               </div>
@@ -178,8 +178,8 @@ async function save() {
       wasteType: form.value.wasteType,
       capacityLiters: form.value.capacityLiters,
       maxCapacityLiters: form.value.maxCapacityLiters,
-      latitude: form.value.latitude,
-      longitude: form.value.longitude
+      latitude: roundCoordinate(form.value.latitude),
+      longitude: roundCoordinate(form.value.longitude)
     }
 
     if (editingId.value)
@@ -196,10 +196,29 @@ async function save() {
   }
 }
 
+function openMapPicker() {
+  showMapPicker.value = true
+}
+
+function clearCoordinates() {
+  form.value.latitude = null
+  form.value.longitude = null
+}
+
 function onCoordinatePicked(payload) {
   // payload: { latitude, longitude } - maybe nulls
-  form.value.latitude = typeof payload.latitude === 'number' ? payload.latitude : null
-  form.value.longitude = typeof payload.longitude === 'number' ? payload.longitude : null
+  form.value.latitude = typeof payload.latitude === 'number' ? roundCoordinate(payload.latitude) : null
+  form.value.longitude = typeof payload.longitude === 'number' ? roundCoordinate(payload.longitude) : null
+}
+
+function roundCoordinate(value) {
+  if (value === null || value === undefined) return null
+  return Math.round(value * 1000000) / 1000000
+}
+
+function formatCoordinate(value) {
+  if (value === null || value === undefined) return '-'
+  return value.toFixed(6)
 }
 let updateInterval = null
 const simulationRunning = ref(false)
@@ -286,6 +305,8 @@ async function remove(id) {
     alert(msg)
   }
 }
+
+
 </script>
 
 <style scoped>

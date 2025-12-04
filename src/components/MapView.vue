@@ -3,11 +3,11 @@
 		<div id="map" ref="mapEl" class="map-el" :style="mapInlineStyle"></div>
 
 		<div class="map-controls">
-			<button class="btn btn-sm btn-light" @click="resetView" title="Réinitialiser la vue">⤢</button>
-			<button class="btn btn-sm btn-light" @click="locateUser" title="Se localiser">📍</button>
+			<button type="button" class="btn btn-sm btn-light" @click="resetView" title="Réinitialiser la vue">⤢</button>
+			<button type="button" class="btn btn-sm btn-light" @click="locateUser" title="Se localiser">📍</button>
 				<div v-if="props.pickable" style="display:flex;align-items:center;gap:6px;">
 					<div class="small text-muted">Cliquez sur la carte pour choisir les coordonnées</div>
-					<button class="btn btn-sm btn-outline-secondary" @click.stop="clearPick" title="Effacer sélection">✕</button>
+					<button type="button" class="btn btn-sm btn-outline-secondary" @click.prevent="clearPick" title="Effacer sélection">✕</button>
 				</div>
 			<select class="form-select form-select-sm" v-model="filterStatus" @change="applyFilter" title="Filtrer">
 				<option value="all">Tous</option>

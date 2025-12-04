@@ -3,8 +3,8 @@
 		<div class="d-flex justify-content-between align-items-center mb-3">
 				<h2>Tournées</h2>
 				<div>
-					<button class="btn btn-outline-success me-2" @click="planifierIntelligent">Planification intelligente</button>
-					<button class="btn btn-primary" @click="openAdd">Créer tournée</button>
+					<button type="button" class="btn btn-outline-success me-2" @click="planifierIntelligent">Planification intelligente</button>
+					<button type="button" class="btn btn-primary" @click="openAdd">Créer tournée</button>
 				</div>
 			</div>
 
@@ -35,15 +35,17 @@
 					<td>{{ t.status }}</td>
 					<td>{{ formatDistance(t.estimatedDistance) }}</td>
 					<td>
-						<button class="btn btn-sm btn-info me-1" @click.prevent="showTourOnMap(t)">Afficher</button>
-						<button class="btn btn-sm btn-warning me-1" @click="openEdit(t)">Modifier</button>
-						<button class="btn btn-sm btn-danger me-1" @click="removeTour(t.id)">Supprimer</button>
+						<button type="button" class="btn btn-sm btn-info me-1" @click.prevent="showTourOnMap(t)">Afficher</button>
+						<button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(t)">Modifier</button>
+						<button type="button" class="btn btn-sm btn-danger me-1" @click="removeTour(t.id)">Supprimer</button>
 						<button
+							type="button"
 							v-if="t.status === 'planifiée'"
 							class="btn btn-sm btn-success"
 							@click="demarrerTour(t.id)"
 						>Démarrer</button>
 						<button
+							type="button"
 							v-if="t.status === 'en cours'"
 							class="btn btn-sm btn-primary ms-1"
 							@click="terminerTour(t.id)"
@@ -62,7 +64,7 @@
 						<div class="fw-bold">Proposition de tournée</div>
 						<div class="small text-muted">Véhicule: {{ findVehicleLabel(previewTour?.vehicleId) }}</div>
 					</div>
-					<button class="btn btn-sm btn-light" @click="refusePreview" title="Fermer">✕</button>
+					<button type="button" class="btn btn-sm btn-light" @click="refusePreview" title="Fermer">✕</button>
 				</div>
 				<hr />
 				<div v-if="previewTour">
@@ -75,9 +77,9 @@
 						<div><strong>Employés proposés:</strong> {{ (previewTour.employeeIds || []).map(id => (employees.find(e=>e.id===id)?.name) || id).join(', ') }}</div>
 						<div class="mt-2"><strong>Distance estimée:</strong> {{ formatDistance(previewTour.estimatedDistance) }} km</div>
 						<div class="d-flex gap-2 mt-3">
-							<button class="btn btn-success" @click="acceptPreview">Accepter et créer</button>
-							<button class="btn btn-outline-secondary" @click="refusePreview">Refuser</button>
-							<button class="btn btn-sm btn-link" @click="startEditPreview">Modifier la proposition</button>
+							<button type="button" class="btn btn-success" @click="acceptPreview">Accepter et créer</button>
+							<button type="button" class="btn btn-outline-secondary" @click="refusePreview">Refuser</button>
+							<button type="button" class="btn btn-sm btn-link" @click="startEditPreview">Modifier la proposition</button>
 						</div>
 					</div>
 					<div v-else>
@@ -106,8 +108,8 @@
 							<input v-model.number="previewDraft.estimatedDistance" type="number" step="0.1" class="form-control form-control-sm" />
 						</div>
 						<div class="d-flex gap-2">
-							<button class="btn btn-success btn-sm" @click="saveDraftPreview">Appliquer</button>
-							<button class="btn btn-secondary btn-sm" @click="cancelEditPreview">Annuler</button>
+							<button type="button" class="btn btn-success btn-sm" @click="saveDraftPreview">Appliquer</button>
+							<button type="button" class="btn btn-secondary btn-sm" @click="cancelEditPreview">Annuler</button>
 						</div>
 					</div>
 				</div>

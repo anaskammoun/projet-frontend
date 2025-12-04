@@ -11,6 +11,9 @@
 				<input v-model="form.password" type="password" class="form-control" required />
 			</div>
 			<button class="btn btn-primary" type="submit">Se connecter</button>
+			<div class="mt-3 text-center">
+				<router-link to="/register" class="text-primary">Pas encore de compte ? S'inscrire</router-link>
+			</div>
 		</form>
 	</AuthLayout>
 </template>
@@ -19,16 +22,19 @@
 import AuthLayout from '../layouts/AuthLayout.vue'
 import authService from '../services/auth.service.js'
 import { reactive } from 'vue'
+import { useRouter } from 'vue-router'
 
 const form = reactive({ email: '', password: '' })
+const router = useRouter()
 
 async function submit() {
 	try {
 		await authService.login(form)
 		// redirect to home
-		window.location.href = '#/'
+		router.push('/')
 	} catch (e) {
-		alert('Erreur de connexion')
+		const errorMsg = e.response?.data || 'Erreur de connexion'
+		alert(errorMsg)
 	}
 }
 </script>

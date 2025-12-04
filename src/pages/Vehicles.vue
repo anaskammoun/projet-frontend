@@ -2,7 +2,7 @@
   <DashboardLayout>
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Véhicules</h2>
-      <button class="btn btn-primary" @click="openAdd">Ajouter</button>
+      <button type="button" class="btn btn-primary" @click="openAdd">Ajouter</button>
     </div>
 
 
@@ -27,8 +27,8 @@
           <td>{{ v.latitude ?? '-' }}</td>
           <td>{{ v.longitude ?? '-' }}</td>
           <td>
-            <button class="btn btn-sm btn-warning me-1" @click="openEdit(v)">Modifier</button>
-            <button class="btn btn-sm btn-danger" @click="remove(v.id)">Supprimer</button>
+            <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(v)">Modifier</button>
+            <button type="button" class="btn btn-sm btn-danger" @click="remove(v.id)">Supprimer</button>
           </td>
         </tr>
       </tbody>
@@ -38,7 +38,7 @@
     <transition name="modal">
       <div v-if="showForm" class="modal-backdrop" @click.self="cancel">
         <div class="modal-content">
-          <button class="close-btn" @click="cancel">&times;</button>
+          <button type="button" class="close-btn" @click="cancel">&times;</button>
           <h5 class="mb-3">{{ editingId ? 'Modifier véhicule' : 'Ajouter véhicule' }}</h5>
           <form @submit.prevent="save">
             <div class="mb-3">
