@@ -9,24 +9,34 @@
 </div>
     </div>
 
+    <!-- Barre de recherche -->
+    <div class="mb-3">
+      <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par type de déchet, statut ou coordonnées..." />
+    </div>
+
     <table class="table table-striped">
       <thead>
         <tr>
           <th>Waste Type</th>
           <th>Capacity (L)</th>
           <th>Max Capacity (L)</th>
+          <th>Niveau (%)</th>
           <th>Status</th>
           <th>Coordonnées</th>
           <th>Action</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="p in points" :key="p.id">
+        <tr v-if="paginatedPoints.length === 0">
+          <td colspan="7" class="text-center text-muted">Aucun point de collecte trouvé</td>
+        </tr>
+        <tr v-for="p in paginatedPoints" :key="p.id">
           <td>{{ p.wasteType || '-' }}</td>
           <td>{{ p.capacityLiters ?? '-' }}</td>
           <td>{{ p.maxCapacityLiters ?? '-' }}</td>
+          <td>{{ formatNiveau(p) }}</td>
           <td>{{ computeStatus(p) }}</td>
-          <td>{{ formatCoordinate(p.latitude) }}, {{ formatCoordinate(p.longitude) }}</td>
+          <td>{{ formatCoordinate(p.latitude) }},{{ formatCoordinate(p.longitude) }}</td>
           <td>
             <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(p)">Modifier</button>
             <button type="button" class="btn btn-sm btn-danger" @click="remove(p.id)">Supprimer</button>
@@ -34,6 +44,28 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Pagination -->
+    <nav v-if="totalPages > 1" aria-label="Pagination">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+          <button class="page-link" @click="currentPage = 1" :disabled="currentPage === 1">«</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+          <button class="page-link" @click="currentPage--" :disabled="currentPage === 1">‹</button>
+        </li>
+        <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === currentPage }">
+          <button class="page-link" @click="currentPage = page">{{ page }}</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+          <button class="page-link" @click="currentPage++" :disabled="currentPage === totalPages">›</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+          <button class="page-link" @click="currentPage = totalPages" :disabled="currentPage === totalPages">»</button>
+        </li>
+      </ul>
+      <div class="text-center text-muted small">Page {{ currentPage }} sur {{ totalPages }} ({{ filteredPoints.length }} résultats)</div>
+    </nav>
 
     <!-- Modal -->
     <transition name="modal-slide">
@@ -108,11 +140,14 @@
 import DashboardLayout from "../layouts/DashboardLayout.vue"
 import MapPickerModal from '../components/MapPickerModal.vue'
 import collecteService from "../services/CollectPointService.js"
-import { ref, onMounted, onBeforeUnmount } from "vue"
+import { ref, onMounted, onBeforeUnmount, computed } from "vue"
 
 const points = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
+const searchQuery = ref('')
+const currentPage = ref(1)
+const itemsPerPage = 10
 
 const form = ref({
   wasteType: 'plastique',
@@ -124,6 +159,43 @@ const form = ref({
 })
 
 const showMapPicker = ref(false)
+
+const filteredPoints = computed(() => {
+  const list = !searchQuery.value ? points.value : points.value.filter(p => {
+    const query = searchQuery.value.toLowerCase()
+    const wasteType = (p.wasteType || '').toLowerCase()
+    const status = computeStatus(p).toLowerCase()
+    const coords = `${p.latitude},${p.longitude}`.toLowerCase()
+    return wasteType.includes(query) || status.includes(query) || coords.includes(query)
+  })
+  // Inverser l'ordre pour afficher les nouveaux en haut
+  return [...list].reverse()
+})
+
+const totalPages = computed(() => Math.ceil(filteredPoints.value.length / itemsPerPage))
+
+const paginatedPoints = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredPoints.value.slice(start, end)
+})
+
+const visiblePages = computed(() => {
+  const pages = []
+  const total = totalPages.value
+  const current = currentPage.value
+  const delta = 2
+  const left = Math.max(2, current - delta)
+  const right = Math.min(total - 1, current + delta)
+  
+  pages.push(1)
+  if (left > 2) pages.push('...')
+  for (let i = left; i <= right; i++) pages.push(i)
+  if (right < total - 1) pages.push('...')
+  if (total > 1) pages.push(total)
+  
+  return pages.filter((v, i, arr) => arr.indexOf(v) === i)
+})
 
 async function load() {
   try {
@@ -218,8 +290,20 @@ function roundCoordinate(value) {
 
 function formatCoordinate(value) {
   if (value === null || value === undefined) return '-'
-  return value.toFixed(6)
+  // Supprimer les zéros inutiles à droite
+  return parseFloat(value.toFixed(6)).toString()
 }
+
+function formatNiveau(p) {
+  if (p.niveau != null) {
+    return p.niveau.toFixed(2) + '%'
+  }
+  // Calcul côté client si le backend n'a pas envoyé le niveau
+  if (p.capacityLiters == null || p.maxCapacityLiters == null || p.maxCapacityLiters === 0) return '-'
+  const niveau = (p.capacityLiters / p.maxCapacityLiters) * 100
+  return niveau.toFixed(2) + '%'
+}
+
 let updateInterval = null
 const simulationRunning = ref(false)
 

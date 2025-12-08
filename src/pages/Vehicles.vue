@@ -5,6 +5,10 @@
       <button type="button" class="btn btn-primary" @click="openAdd">Ajouter</button>
     </div>
 
+    <!-- Barre de recherche -->
+    <div class="mb-3">
+      <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par matricule, type ou disponibilité..." />
+    </div>
 
     <table class="table table-hover">
       <thead>
@@ -19,13 +23,16 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="v in vehicles" :key="v.id">
+        <tr v-if="paginatedVehicles.length === 0">
+          <td colspan="7" class="text-center text-muted">Aucun véhicule trouvé</td>
+        </tr>
+        <tr v-for="v in paginatedVehicles" :key="v.id">
           <td>{{ v.matricule }}</td>
           <td>{{ v.type }}</td>
           <td>{{ v.capacity ?? '-' }}</td>
           <td>{{ v.available ? 'Oui' : 'Non' }}</td>
-          <td>{{ v.latitude ?? '-' }}</td>
-          <td>{{ v.longitude ?? '-' }}</td>
+          <td>{{ formatCoordinate(v.latitude) }}</td>
+          <td>{{ formatCoordinate(v.longitude) }}</td>
           <td>
             <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(v)">Modifier</button>
             <button type="button" class="btn btn-sm btn-danger" @click="remove(v.id)">Supprimer</button>
@@ -33,6 +40,28 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Pagination -->
+    <nav v-if="totalPages > 1" aria-label="Pagination">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+          <button class="page-link" @click="currentPage = 1" :disabled="currentPage === 1">«</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+          <button class="page-link" @click="currentPage--" :disabled="currentPage === 1">‹</button>
+        </li>
+        <li v-for="page in visiblePages" :key="page" class="page-item" :class="{ active: page === currentPage }">
+          <button class="page-link" @click="currentPage = page">{{ page }}</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+          <button class="page-link" @click="currentPage++" :disabled="currentPage === totalPages">›</button>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+          <button class="page-link" @click="currentPage = totalPages" :disabled="currentPage === totalPages">»</button>
+        </li>
+      </ul>
+      <div class="text-center text-muted small">Page {{ currentPage }} sur {{ totalPages }} ({{ filteredVehicles.length }} résultats)</div>
+    </nav>
 
     <!-- Modal -->
     <transition name="modal">
@@ -89,7 +118,7 @@
 <script setup>
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import VehicleService from '../services/VehicleService.js'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import L from 'leaflet'
 import MapPickerModal from '../components/MapPickerModal.vue'
 
@@ -99,16 +128,56 @@ let markers = []
 const vehicles = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
+const searchQuery = ref('')
+const currentPage = ref(1)
+const itemsPerPage = 10
 
 const form = ref({
   matricule: '',
   type: '',
   capacity: 0,
-  latitude: 0,
-  longitude: 0
+  latitude: null,
+  longitude: null
 })
 
 const showMapPicker = ref(false)
+
+const filteredVehicles = computed(() => {
+  const list = !searchQuery.value ? vehicles.value : vehicles.value.filter(v => {
+    const query = searchQuery.value.toLowerCase()
+    const matricule = (v.matricule || '').toLowerCase()
+    const type = (v.type || '').toLowerCase()
+    const disponible = v.available ? 'oui disponible' : 'non indisponible'
+    return matricule.includes(query) || type.includes(query) || disponible.includes(query)
+  })
+  // Inverser l'ordre pour afficher les nouveaux en haut
+  return [...list].reverse()
+})
+
+const totalPages = computed(() => Math.ceil(filteredVehicles.value.length / itemsPerPage))
+
+const paginatedVehicles = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredVehicles.value.slice(start, end)
+})
+
+const visiblePages = computed(() => {
+  const pages = []
+  const total = totalPages.value
+  const current = currentPage.value
+  const delta = 2
+  const left = Math.max(2, current - delta)
+  const right = Math.min(total - 1, current + delta)
+  
+  pages.push(1)
+  if (left > 2) pages.push('...')
+  for (let i = left; i <= right; i++) pages.push(i)
+  if (right < total - 1) pages.push('...')
+  if (total > 1) pages.push(total)
+  
+  return pages.filter((v, i, arr) => arr.indexOf(v) === i)
+})
 
 // create car icon for map markers
 const carIconUrl = new URL('../assets/car-icon.svg', import.meta.url).href
@@ -159,7 +228,7 @@ onMounted(load)
 
 function openAdd() {
   editingId.value = null
-  form.value = { matricule: '', type: '', capacity: 0, available: true, latitude: 0, longitude: 0 }
+  form.value = { matricule: '', type: '', capacity: 0, available: true, latitude: null, longitude: null }
   showForm.value = true
 }
 
@@ -169,8 +238,8 @@ function openEdit(v) {
     matricule: v.matricule || '',
     type: v.type || '',
     capacity: v.capacity ?? 0,
-    latitude: v.latitude ?? 0,
-    longitude: v.longitude ?? 0
+    latitude: v.latitude ?? null,
+    longitude: v.longitude ?? null
   }
   showForm.value = true
 }
@@ -184,6 +253,11 @@ function onVehiclePicked(payload) {
 function clearVehicleCoords() {
   form.value.latitude = null
   form.value.longitude = null
+}
+
+function formatCoordinate(value) {
+  if (value === null || value === undefined) return '-'
+  return parseFloat(value.toFixed(6)).toString()
 }
 
 function cancel() {

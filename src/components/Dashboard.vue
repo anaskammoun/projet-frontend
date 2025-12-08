@@ -7,13 +7,7 @@
       <NavBar />
 
       <main class="p-4">
-     <div class="d-flex justify-content-between align-items-center mb-4">
-  <h2 class="fw-bold text-primary">Tableau de bord</h2>
-
-  <button class="btn btn-success btn-lg shadow-sm" @click="planifier">
-     Planifier
-  </button>
-</div>
+        <h2 class="fw-bold text-primary mb-4">Tableau de bord</h2>
 
         <!-- Top cards -->
         <div class="row g-4 mb-5">
@@ -85,16 +79,6 @@ import MapView from './MapView.vue'
 import collecteService from '../services/CollectPointService.js'
 import VehicleService from '../services/VehicleService.js'
 import EmployeeService from '../services/EmployeeService.js'
-async function planifier() {
-  try {
-    await collecteService.planifier(); // appel vers le backend
-    await loadData(); // refresh dashboard
-    alert("Planification effectuée ! Les capacités des points de collecte ont été mises à jour.");
-  } catch (e) {
-    console.error(e);
-    alert("Erreur durant la planification.");
-  }
-}
 
 const cards = ref([
   { title: 'Points de collecte', value: '—' },

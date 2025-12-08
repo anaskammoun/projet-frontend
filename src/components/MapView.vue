@@ -194,8 +194,13 @@ function buildPopup(p) {
 		lines.push(`<strong>Fill Level:</strong> ${fill}%`)
 	}
 	if (p.status) lines.push(`<strong>Status:</strong> ${p.status}`)
-	if (p.latitude && p.longitude) lines.push(`<strong>Coord:</strong> ${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}`)
+	if (p.latitude && p.longitude) lines.push(`<strong>Coord:</strong> ${formatCoordinate(p.latitude)},${formatCoordinate(p.longitude)}`)
 	return lines.join('<br/>')
+}
+
+function formatCoordinate(value) {
+	if (value === null || value === undefined) return '-'
+	return parseFloat(Number(value).toFixed(6)).toString()
 }
 
 async function addMarkers(points) {
@@ -238,7 +243,7 @@ async function addVehicleMarkers(vehicles) {
 			`<strong>Véhicule:</strong> ${v.matricule || '-'} (${v.type || '-'})`,
 			`<strong>Capacité:</strong> ${v.capacity ?? '-'} L`,
 			`<strong>Disponible:</strong> ${v.available ? 'Oui' : 'Non'}`,
-			v.latitude && v.longitude ? `<strong>Coord:</strong> ${v.latitude.toFixed(5)}, ${v.longitude.toFixed(5)}` : ''
+			v.latitude && v.longitude ? `<strong>Coord:</strong> ${formatCoordinate(v.latitude)},${formatCoordinate(v.longitude)}` : ''
 		].filter(Boolean).join('<br/>')
 
 		marker.bindPopup(popup, { maxWidth: 260 })
@@ -280,7 +285,7 @@ function locateUser() {
 }
 
 onMounted(async () => {
-	map = L.map(mapEl.value, { preferCanvas: true, zoomControl: false }).setView([36.8, 10.18], 12)
+	map = L.map(mapEl.value, { preferCanvas: true, zoomControl: false, scrollWheelZoom: false }).setView([36.8, 10.18], 12)
 
 		// when in pickable mode the map should allow picking coordinates
 		if (props.pickable) {

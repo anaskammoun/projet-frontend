@@ -13,5 +13,7 @@ export default {
 	// Démarrer une tournée (changer statut et rendre ressources indisponibles)
 	startTour(id) { return api.post(`/tours/${id}/start`) },
 	// Terminer une tournée (libérer ressources et mettre à jour statut)
-	finishTour(id) { return api.post(`/tours/${id}/finish`) }
+	finishTour(id) { return api.post(`/tours/${id}/finish`) },
+	// Récupère les indicateurs de performance (counts + taux de remplissage)
+	getStats() { return api.get('/tours/stats') }
 }

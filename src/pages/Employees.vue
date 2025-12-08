@@ -5,21 +5,29 @@
       <button type="button" class="btn btn-primary" @click="openAdd">Ajouter</button>
     </div>
 
+    <!-- Barre de recherche -->
+    <div class="mb-3">
+      <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par nom, CIN ou compétence..." />
+    </div>
+
     <table class="table table-striped">
       <thead>
         <tr>
           <th>Nom</th>
-          <!--<th>Rôle</th>-->
-          <th>Compétence</th>
+          <th>CIN</th>
+          <th>Compétences</th>
           <th>Disponible</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="e in employees" :key="e.id">
+        <tr v-if="paginatedEmployees.length === 0">
+          <td colspan="5" class="text-center text-muted">Aucun employé trouvé</td>
+        </tr>
+        <tr v-for="e in paginatedEmployees" :key="e.id">
           <td>{{ e.name }}</td>
-          <td>{{ e.role }}</td>
-          <!--<td>{{ (e.skills || []).join(', ') }}</td>-->
+          <td>{{ e.cin || '-' }}</td>
+          <td>{{ (e.skills || []).join(', ') || '-' }}</td>
           <td>{{ e.available ? 'Oui' : 'Non' }}</td>
           <td>
             <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(e)">Modifier</button>
@@ -28,6 +36,21 @@
         </tr>
       </tbody>
     </table>
+
+    <!-- Pagination -->
+    <nav v-if="totalPages > 1" aria-label="Pagination">
+      <ul class="pagination justify-content-center">
+        <li class="page-item" :class="{ disabled: currentPage === 1 }">
+          <a class="page-link" href="#" @click.prevent="currentPage = Math.max(1, currentPage - 1)">Précédent</a>
+        </li>
+        <li v-for="p in totalPages" :key="p" class="page-item" :class="{ active: p === currentPage }">
+          <a class="page-link" href="#" @click.prevent="currentPage = p">{{ p }}</a>
+        </li>
+        <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+          <a class="page-link" href="#" @click.prevent="currentPage = Math.min(totalPages, currentPage + 1)">Suivant</a>
+        </li>
+      </ul>
+    </nav>
 
     <!-- Modal -->
     <transition name="modal-slide">
@@ -41,15 +64,14 @@
               <input v-model="form.name" class="form-control" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Compétence</label>
-              <input v-model="form.role" class="form-control" />
+              <label class="form-label">CIN</label>
+              <input v-model="form.cin" class="form-control" required />
             </div>
-            <!--
             <div class="mb-3">
               <label class="form-label">Compétences (séparées par des virgules)</label>
-              <input v-model="form.skillsText" class="form-control" placeholder="tri, conduite, nettoyage" />
+              <input v-model="form.skillsText" class="form-control" placeholder="conducteur, agent de collecte, tri, nettoyage" required />
             </div>
-            -->
+            
             <div class="mb-3 form-check">
               <input id="empAvailable" v-model="form.available" type="checkbox" class="form-check-input" />
               <label for="empAvailable" class="form-check-label">Disponible</label>
@@ -68,12 +90,35 @@
 <script setup>
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import EmployeeService from '../services/EmployeeService.js'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 const employees = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
-const form = ref({ name: '', role: '', skillsText: '', available: true })
+const form = ref({ name: '', cin: '', skillsText: '', available: true })
+
+// Recherche et pagination
+const searchQuery = ref('')
+const currentPage = ref(1)
+const itemsPerPage = 10
+
+const filteredEmployees = computed(() => {
+  if (!searchQuery.value) return employees.value
+  const query = searchQuery.value.toLowerCase()
+  return employees.value.filter(e => 
+    (e.name || '').toLowerCase().includes(query) ||
+    (e.cin || '').toLowerCase().includes(query) ||
+    (e.skills || []).some(skill => skill.toLowerCase().includes(query))
+  )
+})
+
+const totalPages = computed(() => Math.ceil(filteredEmployees.value.length / itemsPerPage))
+
+const paginatedEmployees = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredEmployees.value.slice(start, end)
+})
 
 async function load() {
   try {
@@ -88,7 +133,7 @@ onMounted(load)
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', role: '', skillsText: '', available: true }
+  form.value = { name: '', cin: '', skillsText: '', available: true }
   showForm.value = true
 }
 
@@ -96,7 +141,7 @@ function openEdit(e) {
   editingId.value = e.id
   form.value = { 
     name: e.name || '', 
-    role: e.role || '', 
+    cin: e.cin || '',
     skillsText: (e.skills || []).join(', '), 
     available: e.available === undefined ? true : e.available
   }
@@ -111,7 +156,7 @@ async function save() {
   try {
     const payload = {
       name: form.value.name,
-      role: form.value.role,
+      cin: form.value.cin,
       skills: form.value.skillsText
         ? form.value.skillsText.split(',').map(s => s.trim()).filter(Boolean)
         : [],

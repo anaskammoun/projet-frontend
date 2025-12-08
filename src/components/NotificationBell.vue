@@ -16,18 +16,20 @@
 
       <div v-if="notifications.length === 0" class="small text-muted">Aucune notification</div>
 
-      <div v-for="n in notifications" :key="n.id" :class="['notification-item', 'p-2', 'mb-1', 'border', 'rounded', n.read ? 'text-muted' : 'bg-light']">
-        <div class="d-flex justify-content-between">
-          <div>
-            <div class="fw-semibold">{{ n.type }}</div>
-            <div class="small text-muted">{{ n.message }}</div>
-            <div v-if="n.latitude != null && n.longitude != null" class="small text-info">📍 {{ n.latitude.toFixed(6) }}, {{ n.longitude.toFixed(6) }}</div>
-          </div>
-          <div class="text-end">
-            <div class="small text-muted">{{ formatDate(n.timestamp) }}</div>
-            <div class="d-flex flex-column align-items-end">
-              <button v-if="!n.read" class="btn btn-sm btn-outline-success mb-1" @click.stop="markRead(n.id)">Marquer lu</button>
-              <button class="btn btn-sm btn-link text-danger" @click.stop="remove(n.id)">Supprimer</button>
+      <div class="notifications-list">
+        <div v-for="n in notifications" :key="n.id" :class="['notification-item', 'p-2', 'mb-1', 'border', 'rounded', n.read ? 'text-muted' : 'bg-light']">
+          <div class="d-flex justify-content-between">
+            <div>
+              <div class="fw-semibold">{{ n.type }}</div>
+              <div class="small text-muted">{{ n.message }}</div>
+              <div v-if="n.latitude != null && n.longitude != null" class="small text-info">📍 {{ formatCoordinate(n.latitude) }},{{ formatCoordinate(n.longitude) }}</div>
+            </div>
+            <div class="text-end">
+              <div class="small text-muted">{{ formatDate(n.timestamp) }}</div>
+              <div class="d-flex flex-column align-items-end">
+                <button v-if="!n.read" class="btn btn-sm btn-outline-success mb-1" @click.stop="markRead(n.id)">Marquer lu</button>
+                <button class="btn btn-sm btn-link text-danger" @click.stop="remove(n.id)">Supprimer</button>
+              </div>
             </div>
           </div>
         </div>
@@ -47,7 +49,12 @@ const pollInterval = ref(null)
 async function load() {
   try {
     const r = await service.getAll()
-    notifications.value = r.data || []
+    // Trier les notifications par timestamp décroissant (plus récentes en haut)
+    notifications.value = (r.data || []).sort((a, b) => {
+      const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0
+      const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0
+      return dateB - dateA
+    })
   } catch (e) {
     console.error('Failed to fetch notifications', e)
   }
@@ -62,6 +69,11 @@ function formatDate(ts) {
   if (!ts) return ''
   const d = new Date(ts)
   return d.toLocaleString()
+}
+
+function formatCoordinate(value) {
+  if (value === null || value === undefined) return '-'
+  return parseFloat(value.toFixed(6)).toString()
 }
 
 async function remove(id) {
@@ -103,4 +115,23 @@ const unreadCount = computed(() => notifications.value.filter(n => !n.read).leng
 .notification-bell { position: relative; }
 .notification-popup { position: absolute; right: -8px; top: 44px; width: 360px; z-index: 2000; }
 .notification-item { background: #fff }
+.notifications-list { 
+  max-height: 400px; 
+  overflow-y: auto; 
+  overflow-x: hidden;
+}
+.notifications-list::-webkit-scrollbar {
+  width: 8px;
+}
+.notifications-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+.notifications-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+.notifications-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
 </style>
