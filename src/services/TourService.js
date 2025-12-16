@@ -15,5 +15,7 @@ export default {
 	// Terminer une tournée (libérer ressources et mettre à jour statut)
 	finishTour(id) { return api.post(`/tours/${id}/finish`) },
 	// Récupère les indicateurs de performance (counts + taux de remplissage)
-	getStats() { return api.get('/tours/stats') }
+	getStats() { return api.get('/tours/stats') },
+	// Filtre les tournées par statut
+	getByStatus(status) { return api.get(`/tours?status=${encodeURIComponent(status)}`) }
 }

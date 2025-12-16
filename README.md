@@ -1,5 +1,25 @@
-# Vue 3 + Vite
+# Gestion Déchets – Frontend (Vue 3 + Vite)
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+## Prérequis
+- Node.js 18+
+- npm
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Installation & lancement
+```bash
+npm install
+npm run dev
+```
+
+Par défaut, le front appelle l'API backend. Ajuste l'URL dans `src/services/api.js` si nécessaire.
+
+## Backend (référence rapide)
+Dans `../Projet_Backend_Hassen` :
+```bash
+mvn spring-boot:run
+```
+Prérequis : JDK 17+, Maven.
+
+## Structure (résumé)
+- `src/pages` : pages principales (tournées, véhicules, employés, points)
+- `src/components` : composants communs (sidebar, navbar, selects, cartes)
+- `src/services` : appels API centralisés

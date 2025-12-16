@@ -7,13 +7,29 @@
 
     <!-- Barre de recherche -->
     <div class="mb-3">
-      <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par nom, CIN ou compétence..." />
+      <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par nom, prénom, CIN ou compétence..." />
+    </div>
+
+    <!-- Filtre serveur par disponibilité -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Filtrer par disponibilité</label>
+        <select v-model.boolean="availableFilter" class="form-select" @change="onAvailableFilterChange">
+          <option :value="null">Tous</option>
+          <option :value="true">Disponible</option>
+          <option :value="false">Indisponible</option>
+        </select>
+      </div>
+      <div class="col-md-8 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-secondary me-2" @click="clearAvailableFilter">Réinitialiser</button>
+      </div>
     </div>
 
     <table class="table table-striped">
       <thead>
         <tr>
           <th>Nom</th>
+          <th>Prénom</th>
           <th>CIN</th>
           <th>Compétences</th>
           <th>Disponible</th>
@@ -22,10 +38,11 @@
       </thead>
       <tbody>
         <tr v-if="paginatedEmployees.length === 0">
-          <td colspan="5" class="text-center text-muted">Aucun employé trouvé</td>
+          <td colspan="6" class="text-center text-muted">Aucun employé trouvé</td>
         </tr>
         <tr v-for="e in paginatedEmployees" :key="e.id">
           <td>{{ e.name }}</td>
+          <td>{{ e.prenom || '-' }}</td>
           <td>{{ e.cin || '-' }}</td>
           <td>{{ (e.skills || []).join(', ') || '-' }}</td>
           <td>{{ e.available ? 'Oui' : 'Non' }}</td>
@@ -64,6 +81,10 @@
               <input v-model="form.name" class="form-control" required />
             </div>
             <div class="mb-3">
+              <label class="form-label">Prénom</label>
+              <input v-model="form.prenom" class="form-control" required />
+            </div>
+            <div class="mb-3">
               <label class="form-label">CIN</label>
               <input v-model="form.cin" class="form-control" required />
             </div>
@@ -99,6 +120,7 @@ const form = ref({ name: '', cin: '', skillsText: '', available: true })
 
 // Recherche et pagination
 const searchQuery = ref('')
+const availableFilter = ref(null)
 const currentPage = ref(1)
 const itemsPerPage = 10
 
@@ -107,6 +129,7 @@ const filteredEmployees = computed(() => {
   const query = searchQuery.value.toLowerCase()
   return employees.value.filter(e => 
     (e.name || '').toLowerCase().includes(query) ||
+    (e.prenom || '').toLowerCase().includes(query) ||
     (e.cin || '').toLowerCase().includes(query) ||
     (e.skills || []).some(skill => skill.toLowerCase().includes(query))
   )
@@ -122,18 +145,39 @@ const paginatedEmployees = computed(() => {
 
 async function load() {
   try {
-    const res = await EmployeeService.getAll()
+    let res
+    if (availableFilter.value !== null) {
+      res = await EmployeeService.getByAvailable(availableFilter.value)
+    } else {
+      res = await EmployeeService.getAll()
+    }
     employees.value = res.data || []
   } catch (e) {
     employees.value = []
   }
 }
 
+function loadEmployees() {
+  currentPage.value = 1
+  load()
+}
+
+function onAvailableFilterChange() {
+  currentPage.value = 1
+  loadEmployees()
+}
+
+function clearAvailableFilter() {
+  availableFilter.value = null
+  currentPage.value = 1
+  loadEmployees()
+}
+
 onMounted(load)
 
 function openAdd() {
   editingId.value = null
-  form.value = { name: '', cin: '', skillsText: '', available: true }
+  form.value = { name: '', prenom: '', cin: '', skillsText: '', available: true }
   showForm.value = true
 }
 
@@ -141,6 +185,7 @@ function openEdit(e) {
   editingId.value = e.id
   form.value = { 
     name: e.name || '', 
+    prenom: e.prenom || '',
     cin: e.cin || '',
     skillsText: (e.skills || []).join(', '), 
     available: e.available === undefined ? true : e.available
@@ -156,6 +201,7 @@ async function save() {
   try {
     const payload = {
       name: form.value.name,
+      prenom: form.value.prenom,
       cin: form.value.cin,
       skills: form.value.skillsText
         ? form.value.skillsText.split(',').map(s => s.trim()).filter(Boolean)

@@ -9,9 +9,9 @@
       <main class="p-4">
         <h2 class="fw-bold text-primary mb-4">Tableau de bord</h2>
 
-        <!-- Top cards -->
+        <!-- Main KPIs -->
         <div class="row g-4 mb-5">
-          <div class="col-md-4" v-for="card in cards" :key="card.title">
+          <div class="col-md-3" v-for="card in mainCards" :key="card.title">
             <DataCard 
               :title="card.title" 
               :value="card.value" 
@@ -20,38 +20,36 @@
           </div>
         </div>
 
-        <!-- Charts and stats -->
+        <!-- Stats row -->
         <div class="row g-4 mb-5">
-          <!-- Points de collecte -->
-          <div class="col-lg-5">
+          <!-- Points par statut -->
+          <div class="col-lg-6">
             <div class="card h-100 shadow-sm rounded-3 p-4">
-              <h5 class="fw-bold mb-3 text-secondary">Répartition des points de collecte</h5>
-              <ul class="list-unstyled mt-3">
-                <li v-for="c in pointsByType" :key="c.type" class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                  <div>
-                    <strong class="text-dark">{{ c.type }}</strong>
-                    <div class="text-muted small">{{ Math.round((c.count / totalPoints) * 100) }}% du total</div>
+              <h5 class="fw-bold mb-3 text-secondary">Points de collecte par statut</h5>
+              <ul class="list-unstyled mt-2">
+                <li v-for="s in pointsByStatus" :key="s.status" class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                  <div class="d-flex align-items-center">
+                    <span :class="['status-dot me-2', statusClass(s.status)]"></span>
+                    <strong class="text-dark">{{ s.status }}</strong>
                   </div>
-                  <span class="badge bg-gradient-primary rounded-pill px-3 py-1">{{ c.count }}</span>
+                  <span class="badge bg-gradient-primary rounded-pill px-3 py-1">{{ s.count }}</span>
                 </li>
-                <li v-if="pointsByType.length === 0" class="text-muted">Aucun point trouvé.</li>
+                <li v-if="pointsByStatus.length === 0" class="text-muted">Aucun point trouvé.</li>
               </ul>
             </div>
           </div>
 
-          <!-- Véhicules par type -->
-          <div class="col-lg-7">
+          <!-- Points par type de déchet -->
+          <div class="col-lg-6">
             <div class="card h-100 shadow-sm rounded-3 p-4">
-              <h5 class="fw-bold mb-3 text-secondary">Véhicules par type</h5>
-              <div class="row g-3">
-                <div class="col-6" v-for="v in vehiclesByType" :key="v.type">
-                  <div class="p-3 border rounded-3 d-flex flex-column align-items-center justify-content-center bg-light shadow-sm">
-                    <div class="fw-bold text-dark">{{ v.type }}</div>
-                    <div class="text-muted small">{{ v.count }} véhicules</div>
-                  </div>
-                </div>
-                <div v-if="vehiclesByType.length === 0" class="text-muted">Aucun véhicule trouvé.</div>
-              </div>
+              <h5 class="fw-bold mb-3 text-secondary">Points par type de déchet</h5>
+              <ul class="list-unstyled mt-2">
+                <li v-for="c in pointsByType" :key="c.type" class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                  <strong class="text-dark">{{ c.type }}</strong>
+                  <span class="badge bg-gradient-primary rounded-pill px-3 py-1">{{ c.count }}</span>
+                </li>
+                <li v-if="pointsByType.length === 0" class="text-muted">Aucun point trouvé.</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -79,55 +77,66 @@ import MapView from './MapView.vue'
 import collecteService from '../services/CollectPointService.js'
 import VehicleService from '../services/VehicleService.js'
 import EmployeeService from '../services/EmployeeService.js'
+import TourService from '../services/TourService.js'
 
-const cards = ref([
+const mainCards = ref([
   { title: 'Points de collecte', value: '—' },
   { title: 'Véhicules disponibles', value: '—' },
-  { title: 'Employés disponibles', value: '—' }
+  { title: 'Employés disponibles', value: '—' },
+  { title: 'Tournées en cours', value: '—' }
 ])
 
+const pointsByStatus = ref([])
 const pointsByType = ref([])
-const vehiclesByType = ref([])
-const totalPoints = ref(0)
+
+function statusClass(status) {
+  const map = {
+    'PLEIN': 'bg-danger',
+    'PRESQUE_PLEIN': 'bg-warning',
+    'NORMAL': 'bg-success',
+    'VIDE': 'bg-secondary'
+  }
+  return map[status] || 'bg-secondary'
+}
 
 async function loadData() {
-  const [pointsRes, vehiclesRes, employeesRes] = await Promise.allSettled([
+  const [pointsRes, vehiclesRes, employeesRes, statsRes] = await Promise.allSettled([
     collecteService.getAll(),
     VehicleService.getAll(),
-    EmployeeService.getAll()
+    EmployeeService.getAll(),
+    TourService.getStats()
   ])
 
   const points = pointsRes.status === 'fulfilled' ? pointsRes.value.data : []
   const vehicles = vehiclesRes.status === 'fulfilled' ? vehiclesRes.value.data : []
   const employees = employeesRes.status === 'fulfilled' ? employeesRes.value.data : []
+  const stats = statsRes.status === 'fulfilled' ? statsRes.value.data : null
 
-  // update cards
-  cards.value[0].value = points.length
-  cards.value[1].value = vehicles.filter(v => v.available).length
-  cards.value[2].value = employees.filter(e => e.available).length
+  // Main cards
+  mainCards.value[0].value = points.length
+  mainCards.value[1].value = vehicles.filter(v => v.available).length
+  mainCards.value[2].value = employees.filter(e => e.available).length
+  mainCards.value[3].value = stats?.inProgressCount ?? 0
 
-  // compute points by type (using wasteType)
+  // Points par statut
+  const statusCounts = {}
+  points.forEach(p => {
+    const s = p.status || 'INCONNU'
+    statusCounts[s] = (statusCounts[s] || 0) + 1
+  })
+  const statusOrder = ['PLEIN', 'PRESQUE_PLEIN', 'NORMAL', 'VIDE']
+  pointsByStatus.value = statusOrder
+    .filter(s => statusCounts[s])
+    .map(s => ({ status: s, count: statusCounts[s] }))
+
+  // Points par type de déchet
   const typeCounts = {}
   points.forEach(p => {
     const t = p.wasteType || 'Autre'
     typeCounts[t] = (typeCounts[t] || 0) + 1
   })
-
   pointsByType.value = Object.keys(typeCounts)
     .map(t => ({ type: t, count: typeCounts[t] }))
-    .sort((a, b) => b.count - a.count)
-
-  totalPoints.value = points.length
-
-  // compute vehicles by type
-  const vehicleTypeCounts = {}
-  vehicles.forEach(v => {
-    const t = v.type || 'Autre'
-    vehicleTypeCounts[t] = (vehicleTypeCounts[t] || 0) + 1
-  })
-
-  vehiclesByType.value = Object.keys(vehicleTypeCounts)
-    .map(t => ({ type: t, count: vehicleTypeCounts[t] }))
     .sort((a, b) => b.count - a.count)
 }
 
@@ -135,7 +144,7 @@ onMounted(loadData)
 </script>
 <style scoped>
 .main-content {
-  margin-left: 320px; /* sidebar width */
+  margin-left: 320px;
 }
 
 .card {
@@ -146,26 +155,23 @@ onMounted(loadData)
   font-size: 0.9rem;
 }
 
-.fw-bold {
-  font-size: 1rem;
-}
-
-.text-muted.small {
-  font-size: 0.85rem;
-}
-
 .border-bottom {
   border-bottom: 1px solid #e9ecef;
 }
 
-/* Gradient badge for a modern look */
 .bg-gradient-primary {
   background: linear-gradient(135deg,#0d6efd, #0d6efd);
   color: #fff;
 }
 
-/* Card shadows for subtle depth */
 .shadow-sm {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
 }
 </style>

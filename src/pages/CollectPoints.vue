@@ -14,6 +14,33 @@
       <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par type de déchet, statut ou coordonnées..." />
     </div>
 
+    <!-- Filtres serveur -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Filtrer par statut</label>
+        <select v-model="statusFilter" class="form-select" @change="onFiltersChange">
+          <option value="">Tous</option>
+          <option value="VIDE">VIDE</option>
+          <option value="NORMAL">NORMAL</option>
+          <option value="PRESQUE_PLEIN">PRESQUE_PLEIN</option>
+          <option value="PLEIN">PLEIN</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Filtrer par type</label>
+        <select v-model="wasteTypeFilter" class="form-select" @change="onFiltersChange">
+          <option value="">Tous</option>
+          <option value="plastique">Plastique</option>
+          <option value="organique">Organique</option>
+          <option value="verre">Verre</option>
+          <option value="papier">Papier</option>
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-secondary me-2" @click="clearServerFilters">Réinitialiser filtres</button>
+      </div>
+    </div>
+
     <table class="table table-striped">
       <thead>
         <tr>
@@ -146,6 +173,8 @@ const points = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
 const searchQuery = ref('')
+const statusFilter = ref('')
+const wasteTypeFilter = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
 
@@ -165,7 +194,7 @@ const filteredPoints = computed(() => {
     const query = searchQuery.value.toLowerCase()
     const wasteType = (p.wasteType || '').toLowerCase()
     const status = computeStatus(p).toLowerCase()
-    const coords = `${p.latitude},${p.longitude}`.toLowerCase()
+    const coords = `${formatCoordinate(p.latitude)},${formatCoordinate(p.longitude)}`.toLowerCase()
     return wasteType.includes(query) || status.includes(query) || coords.includes(query)
   })
   // Inverser l'ordre pour afficher les nouveaux en haut
@@ -199,7 +228,14 @@ const visiblePages = computed(() => {
 
 async function load() {
   try {
-    const res = await collecteService.getAll()
+    let res
+    if (statusFilter.value) {
+      res = await collecteService.getByStatus(statusFilter.value)
+    } else if (wasteTypeFilter.value) {
+      res = await collecteService.getByWasteType(wasteTypeFilter.value)
+    } else {
+      res = await collecteService.getAll()
+    }
     points.value = res.data || []
   } catch (e) {
     points.value = []
@@ -207,6 +243,19 @@ async function load() {
 }
 
 onMounted(load)
+
+function onFiltersChange() {
+  // Reset to first page and fetch server-side filtered data
+  currentPage.value = 1
+  load()
+}
+
+function clearServerFilters() {
+  statusFilter.value = ''
+  wasteTypeFilter.value = ''
+  currentPage.value = 1
+  load()
+}
 
 function openAdd() {
   editingId.value = null

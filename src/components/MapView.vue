@@ -266,8 +266,27 @@ async function load() {
 		stats.value.vehicles = vehicles.length
 		await addMarkers(points)
 		await addVehicleMarkers(vehicles)
+		fitToData(points, vehicles)
 	} catch (e) {
 		console.error('Erreur chargement points', e)
+	}
+}
+
+function fitToData(points, vehicles) {
+	if (!map) return
+	const bounds = L.latLngBounds([])
+	points.forEach(p => {
+		if (typeof p.latitude === 'number' && typeof p.longitude === 'number') {
+			bounds.extend([p.latitude, p.longitude])
+		}
+	})
+	vehicles.forEach(v => {
+		if (typeof v.latitude === 'number' && typeof v.longitude === 'number') {
+			bounds.extend([v.latitude, v.longitude])
+		}
+	})
+	if (bounds.isValid()) {
+		try { map.fitBounds(bounds, { padding: [40, 40] }) } catch (e) {}
 	}
 }
 
@@ -285,7 +304,7 @@ function locateUser() {
 }
 
 onMounted(async () => {
-	map = L.map(mapEl.value, { preferCanvas: true, zoomControl: false, scrollWheelZoom: false }).setView([36.8, 10.18], 12)
+	map = L.map(mapEl.value, { preferCanvas: true, zoomControl: false, scrollWheelZoom: true }).setView([36.8, 10.18], 12)
 
 		// when in pickable mode the map should allow picking coordinates
 		if (props.pickable) {
@@ -343,6 +362,9 @@ onMounted(async () => {
 	}).addTo(map)
 
 	L.control.zoom({ position: 'bottomright' }).addTo(map)
+
+	// Assure l'activation du zoom à la molette (certains thèmes Leaflet le désactivent par défaut)
+	try { map.scrollWheelZoom.enable() } catch (e) {}
 
 	map.on('locationfound', e => {
 		const r = L.circle(e.latlng, { radius: Math.max(e.accuracy, 20), color: '#4dc9f6', opacity: 0.6 }).addTo(map)

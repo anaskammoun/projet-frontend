@@ -10,6 +10,28 @@
       <input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par matricule, type ou disponibilité..." />
     </div>
 
+    <!-- Filtres serveur -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label">Filtrer par disponibilité</label>
+        <select v-model.boolean="availableFilter" class="form-select" @change="onFiltersChange">
+          <option :value="null">Tous</option>
+          <option :value="true">Disponible</option>
+          <option :value="false">Indisponible</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Filtrer par type</label>
+        <select v-model="typeFilter" class="form-select" @change="onFiltersChange">
+          <option value="">Tous</option>
+          <option v-for="t in vehicleTypes" :key="t" :value="t">{{ displayType(t) }}</option>
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="button" class="btn btn-outline-secondary me-2" @click="clearFilters">Réinitialiser</button>
+      </div>
+    </div>
+
     <table class="table table-hover">
       <thead>
         <tr>
@@ -28,7 +50,7 @@
         </tr>
         <tr v-for="v in paginatedVehicles" :key="v.id">
           <td>{{ v.matricule }}</td>
-          <td>{{ v.type }}</td>
+          <td>{{ displayType(v.type) }}</td>
           <td>{{ v.capacity ?? '-' }}</td>
           <td>{{ v.available ? 'Oui' : 'Non' }}</td>
           <td>{{ formatCoordinate(v.latitude) }}</td>
@@ -78,8 +100,7 @@
               <label class="form-label">Type</label>
               <select v-model="form.type" class="form-select" required>
                 <option value="" disabled>-- Sélectionner un type --</option>
-                <option value="Camion">Camion</option>
-                <option value="Benne">Benne</option>
+                <option v-for="t in vehicleTypes" :key="t" :value="t">{{ displayType(t) }}</option>
               </select>
             </div>
             <div class="mb-3">
@@ -99,7 +120,12 @@
               <button type="button" class="btn btn-outline-secondary btn-sm" @click.prevent="clearVehicleCoords">Effacer</button>
             </div>
             <MapPickerModal v-model:show="showMapPicker" :initialLat="form.latitude" :initialLng="form.longitude" mapHeight="360px" @picked="onVehiclePicked" />
-            <!-- 'Disponible' checkbox removed per request -->
+            
+            <div class="mb-3 form-check">
+              <input id="vehicleAvailable" v-model="form.available" type="checkbox" class="form-check-input" />
+              <label for="vehicleAvailable" class="form-check-label">Disponible</label>
+            </div>
+            
             <div class="d-flex gap-2">
               <button class="btn btn-success" type="submit">Enregistrer</button>
               <button class="btn btn-secondary" type="button" @click="cancel">Annuler</button>
@@ -129,15 +155,26 @@ const vehicles = ref([])
 const showForm = ref(false)
 const editingId = ref(null)
 const searchQuery = ref('')
+const availableFilter = ref(null)
+const typeFilter = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
+
+const vehicleTypes = ['benne', 'compacteur', 'tri-selectif', 'camion-grue']
+const typeLabels = {
+  benne: 'Benne',
+  compacteur: 'Compacteur',
+  'tri-selectif': 'Tri sélectif',
+  'camion-grue': 'Camion-grue'
+}
 
 const form = ref({
   matricule: '',
   type: '',
   capacity: 0,
   latitude: null,
-  longitude: null
+  longitude: null,
+  available: true
 })
 
 const showMapPicker = ref(false)
@@ -185,7 +222,16 @@ const carIcon = L.icon({ iconUrl: carIconUrl, iconSize: [36,36], iconAnchor: [18
 
 async function load() {
   try {
-    const res = await VehicleService.getAll()
+    let res
+    if (availableFilter.value !== null && typeFilter.value) {
+      res = await VehicleService.getByAvailableAndType(availableFilter.value, typeFilter.value)
+    } else if (availableFilter.value !== null) {
+      res = await VehicleService.getByAvailable(availableFilter.value)
+    } else if (typeFilter.value) {
+      res = await VehicleService.getByType(typeFilter.value)
+    } else {
+      res = await VehicleService.getAll()
+    }
     vehicles.value = res.data || []
   } catch (e) {
     vehicles.value = []
@@ -195,13 +241,25 @@ async function load() {
   updateMarkers()
 }
 
+function onFiltersChange() {
+  currentPage.value = 1
+  load()
+}
+
+function clearFilters() {
+  availableFilter.value = null
+  typeFilter.value = ''
+  currentPage.value = 1
+  load()
+}
+
 function initMap() {
   if (map) return
   // guard: only initialize if the #map element is present in DOM
   const el = document.getElementById('map')
   if (!el) return
   try {
-    map = L.map(el).setView([34.75, 10.7], 6)
+    map = L.map(el, { scrollWheelZoom: true }).setView([34.75, 10.7], 6)
   } catch (err) {
     console.error('Failed to init leaflet map:', err)
     return
@@ -219,7 +277,7 @@ function updateMarkers() {
   vehicles.value.forEach(v => {
     if (v.latitude == null || v.longitude == null) return
     const marker = L.marker([v.latitude, v.longitude], { icon: carIcon, title: v.matricule || 'Véhicule' }).addTo(map)
-    marker.bindPopup(`<b>${v.matricule}</b><br>Type: ${v.type}<br>Capacité: ${v.capacity ?? '-'}`)
+    marker.bindPopup(`<b>${v.matricule}</b><br>Type: ${displayType(v.type)}<br>Capacité: ${v.capacity ?? '-'}`)
     markers.push(marker)
   })
 }
@@ -239,7 +297,8 @@ function openEdit(v) {
     type: v.type || '',
     capacity: v.capacity ?? 0,
     latitude: v.latitude ?? null,
-    longitude: v.longitude ?? null
+    longitude: v.longitude ?? null,
+    available: v.available === undefined ? true : v.available
   }
   showForm.value = true
 }
@@ -253,6 +312,11 @@ function onVehiclePicked(payload) {
 function clearVehicleCoords() {
   form.value.latitude = null
   form.value.longitude = null
+}
+
+function displayType(type) {
+  if (!type) return '-'
+  return typeLabels[type] || type
 }
 
 function formatCoordinate(value) {
@@ -272,13 +336,7 @@ async function save() {
   }
 
   try {
-    // preserve availability on update; new vehicles are available by default
-    let availableFlag = true
-    if (editingId.value) {
-      const existing = vehicles.value.find(x => x.id === editingId.value)
-      availableFlag = existing && typeof existing.available === 'boolean' ? existing.available : true
-    }
-    const payload = { ...form.value, available: availableFlag }
+    const payload = { ...form.value, available: form.value.available }
     if (editingId.value) {
       await VehicleService.update(editingId.value, payload)
     } else {

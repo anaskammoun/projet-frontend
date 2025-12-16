@@ -4,28 +4,9 @@
 				<h2>Tournées</h2>
 				<div>
 					<button type="button" class="btn btn-outline-success me-2" @click="planifierIntelligent">Planification intelligente</button>
-					<button type="button" class="btn btn-primary" @click="openAdd">Créer tournée</button>
+					<!--<button type="button" class="btn btn-primary" @click="openAdd">Créer tournée</button>-->
 				</div>
 			</div>
-
-		<!-- Performance cards moved from dashboard -->
-		<div class="card shadow-sm border-0 rounded-3 mb-4">
-			<div class="card-body">
-				<div class="d-flex justify-content-between align-items-center mb-3">
-					<h5 class="fw-bold mb-0 text-secondary">Performance des tournées</h5>
-					<span class="text-muted small">Statut + remplissage conteneurs</span>
-				</div>
-				<div class="row g-3">
-					<div class="col-md-3" v-for="card in statsCards" :key="card.title">
-						<DataCard
-							:title="card.title"
-							:value="card.value"
-							class="shadow-sm border-0 rounded-3 h-100"
-						/>
-					</div>
-				</div>
-			</div>
-		</div>
 
 		<div class="card shadow-sm rounded-3 mb-3">
 			<div class="card-body p-3">
@@ -35,7 +16,23 @@
 
 		<!-- Barre de recherche -->
 		<div class="mb-3">
-			<input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par véhicule, employé ou statut..." />
+			<input v-model="searchQuery" type="text" class="form-control" placeholder="Rechercher par véhicule, employé, statut ou date" />
+		</div>
+
+		<!-- Filtre serveur par statut -->
+		<div class="row g-3 mb-3">
+			<div class="col-md-4">
+				<label class="form-label">Filtrer par statut</label>
+				<select v-model="statusFilter" class="form-select" @change="onStatusFilterChange">
+					<option value="">Tous</option>
+					<option value="planifiée">Planifiée</option>
+					<option value="en cours">En cours</option>
+					<option value="terminée">Terminée</option>
+				</select>
+			</div>
+			<div class="col-md-8 d-flex align-items-end">
+				<button type="button" class="btn btn-outline-secondary me-2" @click="clearStatusFilter">Réinitialiser</button>
+			</div>
 		</div>
 
 		<table class="table table-striped">
@@ -64,7 +61,15 @@
 					<td>
 						<button type="button" class="btn btn-sm btn-info me-1" @click.prevent="showTourOnMap(t)">Afficher</button>
 						<button type="button" class="btn btn-sm btn-secondary me-1" @click="showPointsDetails(t)">Détails points</button>
-						<button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(t)">Modifier</button>
+						<button 
+							type="button" 
+							class="btn btn-sm btn-warning me-1" 
+							@click="openEditModal(t)"
+							:disabled="t.status === 'en cours' || t.status === 'terminée'"
+							:title="(t.status === 'en cours' || t.status === 'terminée') ? 'Impossible de modifier une tournée en cours ou terminée' : 'Modifier cette tournée'"
+						>
+							Modifier
+						</button>
 						<button type="button" class="btn btn-sm btn-danger me-1" @click="removeTour(t.id)">Supprimer</button>
 						<button
 							type="button"
@@ -126,6 +131,7 @@
 									<th>Niveau (%)</th>
 									<th>Capacité (L)</th>
 									<th>Status</th>
+									<th>Coordonnées</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -137,12 +143,14 @@
 									<td>
 										<span :class="getStatusBadgeClass(point.status)">{{ point.status }}</span>
 									</td>
+									<td>{{ formatCoordinate(point.latitude) }}, {{ formatCoordinate(point.longitude) }}</td>
 								</tr>
 							</tbody>
 							<tfoot>
 								<tr class="table-light fw-bold">
 									<td>{{ calculateAverageNiveau() }}%</td>
 									<td>{{ calculateTotalCapacity() }} L</td>
+									<td></td>
 									<td></td>
 								</tr>
 							</tfoot>
@@ -151,6 +159,71 @@
 					
 					<div class="modal-footer-simple">
 						<button type="button" class="btn btn-secondary btn-sm" @click="closePointsModal">Fermer</button>
+					</div>
+				</div>
+			</div>
+		</transition>
+
+		<!-- Modal Modification Tournée -->
+		<transition name="modal">
+			<div v-if="showEditModal" class="modal-backdrop" @click.self="closeEditModal">
+				<div class="modal-content-simple" style="max-width: 600px;">
+					<div class="modal-header-simple">
+						<h5 class="modal-title-simple">Modifier la tournée</h5>
+						<button type="button" class="close-btn" @click="closeEditModal">&times;</button>
+					</div>
+					
+					<div class="modal-body-simple">
+						<div v-if="editFormError" class="alert alert-danger">{{ editFormError }}</div>
+						<div v-if="capacityError" class="alert alert-warning">{{ capacityError }}</div>
+						
+						<form @submit.prevent="saveEdit">
+							<div class="row">
+								<div class="col-md-6 mb-3">
+									<label class="form-label">Date et heure</label>
+									<input type="datetime-local" v-model="editForm.dateLocal" class="form-control form-control-sm" required />
+								</div>
+								<div class="col-md-6 mb-3">
+									<label class="form-label">Véhicule (disponibles)</label>
+									<select v-model="editForm.vehicleId" class="form-select form-select-sm" @change="updateCapacityInfo">
+										<option value="">-- Aucun --</option>
+										<option v-for="v in availableVehicles" :key="v.id" :value="v.id">
+											{{ v.matricule }} — {{ v.type }}
+										</option>
+									</select>
+								</div>
+							</div>
+
+							<div class="mb-3">
+								<label class="form-label">Points de collecte (sélection multiple)</label>
+								<div v-if="vehicleCapacityInfo" class="small text-info mb-2">
+									Capacité du véhicule: <strong>{{ vehicleCapacityInfo }} L</strong> | Utilisation: <strong>{{ totalPointsCapacity }} L</strong>
+									<span v-if="totalPointsCapacity > vehicleCapacityInfo" class="text-danger">(⚠️ Dépassement!)</span>
+								</div>
+								<SearchMultiSelect
+									v-model="editForm.collectPoints"
+									:items="allPointsForSelect"
+									placeholder="Rechercher un point..."
+									:size="4"
+									@update:modelValue="updateCapacityInfo"
+								/>
+							</div>
+
+							<div class="mb-3">
+								<label class="form-label">Employés (disponibles)</label>
+								<SearchMultiSelect
+									v-model="editForm.employeeIds"
+									:items="availableEmployeesForSelect"
+									placeholder="Rechercher un employé..."
+									:size="3"
+								/>
+							</div>
+						</form>
+					</div>
+					
+					<div class="modal-footer-simple">
+						<button type="button" class="btn btn-secondary btn-sm" @click="closeEditModal">Annuler</button>
+						<button type="button" class="btn btn-primary btn-sm" @click="saveEdit" :disabled="capacityError || !editFormIsValid">Enregistrer</button>
 					</div>
 				</div>
 			</div>
@@ -172,7 +245,10 @@
 					<div v-if="!previewEdit">
 						<div><strong>Points proposés ({{ (previewTour.collectPointsData||[]).length }}):</strong></div>
 						<ul class="mb-2">
-							<li v-for="cp in (previewTour.collectPointsData || [])" :key="cp.id">{{ allPoints.find(p=>p.id===cp.id)?.wasteType || cp.id }} — {{ cp.id }}</li>
+							<li v-for="cp in (previewTour.collectPointsData || [])" :key="cp.id">
+								{{ allPoints.find(p=>p.id===cp.id)?.wasteType || '-' }} — 
+								({{ formatCoordinate(cp.latitude) }}, {{ formatCoordinate(cp.longitude) }})
+							</li>
 						</ul>
 						<div><strong>Employés proposés:</strong> {{ displayEmployees(previewTour.employeesData || previewTour.employees) }}</div>
 						<div class="mt-2"><strong>Distance estimée:</strong> {{ formatDistance(previewTour.estimatedDistance) }} km</div>
@@ -189,10 +265,10 @@
 							<input type="datetime-local" v-model="previewDraft.dateLocal" class="form-control form-control-sm" />
 						</div>
 						<div class="mb-2">
-							<label class="form-label small mb-1">Véhicule</label>
+							<label class="form-label small mb-1">Véhicule (disponibles)</label>
 							<select v-model="previewDraft.vehicleId" class="form-select form-select-sm">
 								<option value="">-- Aucun --</option>
-								<option v-for="v in vehicles" :key="v.id" :value="v.id">{{ v.matricule }} — {{ v.type }}</option>
+								<option v-for="v in availableVehicles" :key="v.id" :value="v.id">{{ v.matricule }} — {{ v.type }}</option>
 							</select>
 						</div>
 						<div class="mb-2">
@@ -200,12 +276,8 @@
 							<SearchMultiSelect v-model="previewDraft.collectPoints" :items="allPointsForSelect" size="4" />
 						</div>
 						<div class="mb-2">
-							<label class="form-label small mb-1">Employés</label>
+							<label class="form-label small mb-1">Employés (disponibles)</label>
 							<SearchMultiSelect v-model="previewDraft.employeeIds" :items="availableEmployeesForSelect" size="3" />
-						</div>
-						<div class="mb-2">
-							<label class="form-label small mb-1">Distance estimée (km)</label>
-							<input v-model.number="previewDraft.estimatedDistance" type="number" step="0.1" class="form-control form-control-sm" />
 						</div>
 						<div class="d-flex gap-2">
 							<button type="button" class="btn btn-success btn-sm" @click="saveDraftPreview">Appliquer</button>
@@ -217,7 +289,7 @@
 		</div>
 
 		<div v-if="showForm" class="card mt-4 p-3">
-			<h5>{{ editingId ? 'Modifier tournée' : 'Créer tournée' }}</h5>
+			<h5>Créer tournée</h5>
 			<div v-if="!isCreateValid" class="text-danger mb-2">
 				Veuillez sélectionner au moins un employé ou un point de collecte.
 			</div>
@@ -299,22 +371,17 @@ import { ref, onMounted, computed } from 'vue'
 import SearchMultiSelect from '../components/SearchMultiSelect.vue'
 import MapView from '../components/MapView.vue'
 import { watch as watchRef } from 'vue'
-import DataCard from '../components/DataCard.vue'
 
 const tours = ref([])
 const allPoints = ref([])
 const vehicles = ref([])
 const employees = ref([])
 const searchQuery = ref('')
+const statusFilter = ref('')
 const currentPage = ref(1)
 const itemsPerPage = 10
-const statsCards = ref([
-	{ title: 'Tournées planifiées', value: '—' },
-	{ title: 'Tournées en cours', value: '—' },
-	{ title: 'Tournées terminées', value: '—' },
-	{ title: 'Taux de remplissage moyen', value: '—' }
-])
-
+const statsCards = ref([])
+const showPreview = ref(false)
 const showForm = ref(false)
 const editingId = ref(null)
 const showPointsModal = ref(false)
@@ -330,13 +397,34 @@ const form = ref({
 })
 const formError = ref('')
 
+// Edit modal state
+const showEditModal = ref(false)
+const editForm = ref({
+	dateLocal: '',
+	collectPoints: [],
+	vehicleId: '',
+	employeeIds: [],
+	status: 'planifiée',
+	estimatedDistance: 0
+})
+const editFormError = ref('')
+const capacityError = ref('')
+const vehicleCapacityInfo = ref(null)
+const totalPointsCapacity = ref(0)
+
+const editFormIsValid = computed(() => {
+	return editForm.value.collectPoints.length > 0 || editForm.value.employeeIds.length > 0
+})
+
 const filteredTours = computed(() => {
 	const list = !searchQuery.value ? tours.value : tours.value.filter(t => {
 		const query = searchQuery.value.toLowerCase()
 		const vehicle = findVehicleLabel(t.vehicleData).toLowerCase()
 		const employees = displayEmployees(t.employeesData || t.employees).toLowerCase()
 		const status = (t.status || '').toLowerCase()
-		return vehicle.includes(query) || employees.includes(query) || status.includes(query)
+		const dateTokens = buildDateSearchTokens(t.date)
+		const dateMatch = dateTokens.some(token => token.includes(query))
+		return vehicle.includes(query) || employees.includes(query) || status.includes(query) || dateMatch
 	})
 	// Inverser l'ordre pour afficher les nouveaux en haut
 	return [...list].reverse()
@@ -369,10 +457,9 @@ const visiblePages = computed(() => {
 
 const routePoints = ref([])
 const routeVehicle = ref(null)
-	const previewTour = ref(null)
-	const showPreview = ref(false)
-	const previewEdit = ref(false)
-	const previewDraft = ref(null)
+const previewTour = ref(null)
+const previewEdit = ref(false)
+const previewDraft = ref(null)
 
 const isCreateValid = computed(() => {
 	if (editingId.value) return true
@@ -406,9 +493,31 @@ function toLocalInput(ts) {
 	return `${yyyy}-${mm}-${dd}T${hh}:${min}`
 }
 
+function buildDateSearchTokens(ts) {
+	if (!ts) return []
+	const d = new Date(Number(ts))
+	if (Number.isNaN(d.getTime())) return []
+	const pad = n => String(n).padStart(2, '0')
+	const yyyy = d.getFullYear()
+	const mm = pad(d.getMonth() + 1)
+	const dd = pad(d.getDate())
+	return [
+		`${yyyy}-${mm}-${dd}`, // ISO-like
+		`${dd}/${mm}/${yyyy}`, // JJ/MM/AAAA
+		`${dd}-${mm}-${yyyy}`, // JJ-MM-AAAA
+		d.toLocaleDateString('fr-FR'),
+		d.toLocaleDateString('en-CA')
+	].filter(Boolean).map(s => s.toLowerCase())
+}
+
 function fromLocalInput(local) {
 	if (!local) return null
 	return new Date(local).getTime()
+}
+
+function formatCoordinate(value) {
+	if (value === null || value === undefined) return '-'
+	return parseFloat(value).toFixed(6)
 }
 
 function findVehicleLabel(vehicleData) {
@@ -424,9 +533,9 @@ function displayEmployees(employeesData) {
 	const embedded = employeesData && employeesData.length ? employeesData : []
 	if (embedded.length > 0) {
 		return embedded.map(e => {
-			const name = e.name || e.id
+			const cin = e.cin || e.id
 			const skill = e.selectedSkill || e.selected_skill || e.skill
-			return skill ? `${name} (${skill})` : name
+			return skill ? `${cin} (${skill})` : cin
 		}).join(', ')
 	}
 	return '-'
@@ -486,41 +595,52 @@ function calculateTotalCapacity() {
 
 const availableEmployees = computed(() => employees.value.filter(e => e.available))
 
+const availableVehicles = computed(() => vehicles.value.filter(v => v.available))
+
 const allPointsForSelect = computed(() =>
-	allPoints.value.map(p => ({ id: p.id, label: `${p.wasteType || '-'} — ${p.id}` }))
+	allPoints.value.map(p => {
+		const lat = p.latitude !== null && p.latitude !== undefined ? parseFloat(p.latitude).toFixed(4) : '-'
+		const lon = p.longitude !== null && p.longitude !== undefined ? parseFloat(p.longitude).toFixed(4) : '-'
+		return { id: p.id, label: `${p.wasteType || '-'} — (${lat}, ${lon})` }
+	})
 )
 
 const availableEmployeesForSelect = computed(() =>
-	availableEmployees.value.map(e => ({ id: e.id, label: e.name || e.id }))
+	availableEmployees.value.map(e => ({ id: e.id, label: e.cin || e.id }))
 )
 
 async function loadAll() {
 	try {
-		const [tRes, pRes, vRes, eRes, statsRes] = await Promise.allSettled([
-			TourService.getAll(),
+		const [tRes, pRes, vRes, eRes] = await Promise.allSettled([
+			statusFilter.value ? TourService.getByStatus(statusFilter.value) : TourService.getAll(),
 			CollectPointService.getAll(),
 			VehicleService.getAll(),
-			EmployeeService.getAll(),
-			TourService.getStats()
+			EmployeeService.getAll()
 		])
 		tours.value = tRes.status === 'fulfilled' && tRes.value.data ? tRes.value.data : []
 		allPoints.value = pRes.status === 'fulfilled' && pRes.value.data ? pRes.value.data : []
 		vehicles.value = vRes.status === 'fulfilled' && vRes.value.data ? vRes.value.data : []
 		employees.value = eRes.status === 'fulfilled' && eRes.value.data ? eRes.value.data : []
-
-		const stats = statsRes.status === 'fulfilled' ? statsRes.value.data : null
-		if (stats) {
-			statsCards.value = [
-				{ title: 'Tournées planifiées', value: stats.plannedCount ?? 0 },
-				{ title: 'Tournées en cours', value: stats.inProgressCount ?? 0 },
-				{ title: 'Tournées terminées', value: stats.completedCount ?? 0 },
-				{ title: 'Taux de remplissage moyen', value: `${stats.averageFillRate ?? 0}%` }
-			]
-		}
 	} catch (e) {
 		console.error(e)
 		tours.value = []
 	}
+}
+
+function loadTours() {
+	currentPage.value = 1
+	loadAll()
+}
+
+function onStatusFilterChange() {
+	currentPage.value = 1
+	loadTours()
+}
+
+function clearStatusFilter() {
+	statusFilter.value = ''
+	currentPage.value = 1
+	loadTours()
 }
 
 onMounted(loadAll)
@@ -529,6 +649,108 @@ function openAdd() {
 	editingId.value = null
 	form.value = { dateLocal: '', collectPoints: [], vehicleId: '', employeeIds: [], status: 'planifiée', estimatedDistance: 0 }
 	showForm.value = true
+}
+
+function openEditModal(t) {
+	// Vérifier que la tournée est modifiable
+	if (t.status === 'en cours' || t.status === 'terminée') {
+		alert('⚠️ Impossible de modifier une tournée en cours ou terminée.')
+		return
+	}
+	
+	editForm.value = {
+		dateLocal: toLocalInput(t.date),
+		collectPoints: t.collectPointsData ? t.collectPointsData.map(cp => cp.id) : [],
+		vehicleId: t.vehicleData?.id || '',
+		employeeIds: t.employeesData?.map(e => e.id) || [],
+		status: t.status || 'planifiée',
+		estimatedDistance: t.estimatedDistance ?? 0
+	}
+	editingId.value = t.id
+	capacityError.value = ''
+	editFormError.value = ''
+	updateCapacityInfo()
+	showEditModal.value = true
+}
+
+function closeEditModal() {
+	showEditModal.value = false
+	editingId.value = null
+	editForm.value = { dateLocal: '', collectPoints: [], vehicleId: '', employeeIds: [], status: 'planifiée', estimatedDistance: 0 }
+	capacityError.value = ''
+	editFormError.value = ''
+	vehicleCapacityInfo.value = null
+	totalPointsCapacity.value = 0
+}
+
+function updateCapacityInfo() {
+	const vehicleId = editForm.value.vehicleId
+	const pointIds = editForm.value.collectPoints || []
+	
+	// Reset
+	vehicleCapacityInfo.value = null
+	totalPointsCapacity.value = 0
+	capacityError.value = ''
+	
+	if (!vehicleId) return
+	
+	const vehicle = vehicles.value.find(v => v.id === vehicleId)
+	if (!vehicle) return
+	
+	vehicleCapacityInfo.value = vehicle.capacity
+	
+	// Calculate total capacity of selected points
+	let total = 0
+	pointIds.forEach(pointId => {
+		const point = allPoints.value.find(p => p.id === pointId)
+		if (point && point.capacityLiters) {
+			total += point.capacityLiters
+		}
+	})
+	totalPointsCapacity.value = total
+	
+	// Calculate distance from points
+	const calculatedDistance = calculateDistanceFromPoints(pointIds)
+	editForm.value.estimatedDistance = calculatedDistance
+	
+	// Check if exceeds capacity
+	if (total > vehicle.capacity) {
+		capacityError.value = `⚠️ Capacité dépassée! Points: ${total}L > Véhicule: ${vehicle.capacity}L`
+	}
+}
+
+function calculateDistanceFromPoints(pointIds) {
+	if (!pointIds || pointIds.length === 0) return 0
+	
+	let totalDistance = 0
+	const points = pointIds.map(id => allPoints.value.find(p => p.id === id)).filter(Boolean)
+	
+	// Si on a au moins 2 points, calculer la distance entre eux (simple estimation)
+	if (points.length >= 2) {
+		for (let i = 0; i < points.length - 1; i++) {
+			const p1 = points[i]
+			const p2 = points[i + 1]
+			
+			// Formule simple de distance (Haversine)
+			if (p1.latitude && p1.longitude && p2.latitude && p2.longitude) {
+				const lat1 = p1.latitude * Math.PI / 180
+				const lat2 = p2.latitude * Math.PI / 180
+				const dLat = (p2.latitude - p1.latitude) * Math.PI / 180
+				const dLon = (p2.longitude - p1.longitude) * Math.PI / 180
+				
+				const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+					Math.cos(lat1) * Math.cos(lat2) *
+					Math.sin(dLon/2) * Math.sin(dLon/2)
+				const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+				const R = 6371 // Rayon terrestre en km
+				const distance = R * c
+				
+				totalDistance += distance
+			}
+		}
+	}
+	
+	return parseFloat(totalDistance.toFixed(2))
 }
 
 function openEdit(t) {
@@ -546,6 +768,105 @@ function openEdit(t) {
 
 function cancel() {
 	showForm.value = false
+}
+
+function hasDriver(employeeIds) {
+	return employeeIds.some(id => {
+		const emp = employees.value.find(e => e.id === id)
+		if (!emp || !emp.skills) return false
+		return emp.skills.some(skill => 
+			skill.toLowerCase().includes('conducteur') || 
+			skill.toLowerCase().includes('chauffeur')
+		)
+	})
+}
+
+async function saveEdit() {
+	try {
+		editFormError.value = ''
+		
+		// Validation
+		if (capacityError.value) {
+			editFormError.value = capacityError.value
+			return
+		}
+		
+		if (!editFormIsValid.value) {
+			editFormError.value = 'Veuillez sélectionner au moins un employé ou un point de collecte.'
+			return
+		}
+		
+		const employeeIds = Array.isArray(editForm.value.employeeIds)
+			? editForm.value.employeeIds
+			: editForm.value.employeeIds
+			? [editForm.value.employeeIds]
+			: []
+		
+		// Vérifier qu'il y a au moins un employé et un conducteur
+		if (employeeIds.length === 0) {
+			editFormError.value = '⚠️ Vous devez sélectionner au moins un employé pour la tournée.'
+			return
+		}
+		
+		if (!hasDriver(employeeIds)) {
+			editFormError.value = '⚠️ Vous devez sélectionner au moins un employé avec la compétence "Conducteur"'
+			return
+		}
+		
+		// Build vehicle snapshot
+		const vehicleData = editForm.value.vehicleId 
+			? vehicles.value.find(v => v.id === editForm.value.vehicleId)
+			: null
+		const vehicleSnapshot = vehicleData ? {
+			id: vehicleData.id,
+			matricule: vehicleData.matricule,
+			type: vehicleData.type
+		} : null
+		
+		// Build employees snapshots
+		const employeesSnapshots = employeeIds.map(id => {
+			const emp = employees.value.find(e => e.id === id)
+			if (!emp) return null
+			const selectedSkill = emp.skills && emp.skills.length > 0 
+				? (emp.skills.find(s => s.toLowerCase().includes('conducteur') || s.toLowerCase().includes('chauffeur')) || emp.skills[0])
+				: null
+			return {
+				id: emp.id,
+				cin: emp.cin,
+				selectedSkill
+			}
+		}).filter(Boolean)
+		
+		const collectPointIds = Array.isArray(editForm.value.collectPoints) ? editForm.value.collectPoints : []
+		const collectPointsData = collectPointIds.map(id => {
+			const p = allPoints.value.find(pt => pt.id === id)
+			if (!p) return { id }
+			return {
+				id: p.id,
+				niveau: p.niveau ?? null,
+				capacityLiters: p.capacityLiters ?? null,
+				status: p.status ?? null,
+				latitude: p.latitude ?? null,
+				longitude: p.longitude ?? null
+			}
+		})
+
+		const payload = {
+			date: fromLocalInput(editForm.value.dateLocal),
+			collectPointsData,
+			vehicleData: vehicleSnapshot,
+			employeesData: employeesSnapshots,
+			status: editForm.value.status || 'planifiée',
+			estimatedDistance: Number(editForm.value.estimatedDistance) || 0
+		}
+		
+		await TourService.update(editingId.value, payload)
+		await loadTours()
+		closeEditModal()
+	} catch (e) {
+		console.error(e)
+		editFormError.value = 'Erreur lors de l\'enregistrement'
+	}
 }
 
 async function save() {
@@ -580,7 +901,7 @@ async function save() {
 				: null
 			return {
 				id: emp.id,
-				name: emp.name,
+				cin: emp.cin,
 				selectedSkill
 			}
 		}).filter(Boolean)
@@ -593,7 +914,9 @@ async function save() {
 				id: p.id,
 				niveau: p.niveau ?? null,
 				capacityLiters: p.capacityLiters ?? null,
-				status: p.status ?? null
+				status: p.status ?? null,
+				latitude: p.latitude ?? null,
+				longitude: p.longitude ?? null
 			}
 		})
 
@@ -605,9 +928,8 @@ async function save() {
 			status: form.value.status || 'planifiée',
 			estimatedDistance: Number(form.value.estimatedDistance) || 0
 		}
-		if (editingId.value) await TourService.update(editingId.value, payload)
-		else await TourService.create(payload)
-		await loadAll()
+		await TourService.create(payload)
+		await loadTours()
 		showForm.value = false
 	} catch (e) {
 		alert("Erreur lors de l'enregistrement")
@@ -618,7 +940,7 @@ async function removeTour(id) {
 	if (!confirm('Supprimer cette tournée ?')) return
 	try {
 		await TourService.delete(id)
-		await loadAll()
+		await loadTours()
 	} catch (e) {
 		alert('Erreur suppression')
 	}
@@ -680,7 +1002,7 @@ async function acceptPreview() {
 				: null
 			return {
 				id: emp.id,
-				name: emp.name,
+				cin: emp.cin,
 				selectedSkill
 			}
 		}).filter(Boolean)
@@ -695,7 +1017,9 @@ async function acceptPreview() {
 				id: p.id,
 				niveau: p.niveau ?? null,
 				capacityLiters: p.capacityLiters ?? null,
-				status: p.status ?? null
+				status: p.status ?? null,
+				latitude: p.latitude ?? null,
+				longitude: p.longitude ?? null
 			}
 		})
 
@@ -769,7 +1093,7 @@ function saveDraftPreview() {
 		const skill = emp.skills && emp.skills.length > 0
 			? (emp.skills.find(s => s.toLowerCase().includes('conducteur') || s.toLowerCase().includes('chauffeur')) || emp.skills[0])
 			: null
-		return { id: emp.id, name: emp.name, selectedSkill: skill }
+		return { id: emp.id, cin: emp.cin, selectedSkill: skill }
 	})
 	previewTour.value.estimatedDistance = Number(previewDraft.value.estimatedDistance || previewTour.value.estimatedDistance)
 	// update the map routePoints and routeVehicle
@@ -803,22 +1127,22 @@ function showTourOnMap(t) {
 	}, 100)
 }
 
-				async function demarrerTour(id) {
-					if (!confirm('Démarrer cette tournée ?')) return
-					try {
-						await TourService.startTour(id)
-						await loadAll()
-						alert('Tournée démarrée. Véhicule et employés associés sont maintenant indisponibles.')
-					} catch (e) {
-						alert('Erreur lors du démarrage de la tournée')
-					}
-				}
+async function demarrerTour(id) {
+	if (!confirm('Démarrer cette tournée ?')) return
+	try {
+		await TourService.startTour(id)
+		await loadTours()
+		alert('Tournée démarrée. Véhicule et employés associés sont maintenant indisponibles.')
+	} catch (e) {
+		alert('Erreur lors du démarrage de la tournée')
+	}
+}
 
 async function terminerTour(id) {
 	if (!confirm('Terminer cette tournée ?')) return
 	try {
 		await TourService.finishTour(id)
-		await loadAll()
+		await loadTours()
 		alert('Tournée terminée. Véhicule et employés associés sont libérés (disponibles).')
 	} catch (e) {
 		alert("Erreur lors de la terminaison de la tournée")

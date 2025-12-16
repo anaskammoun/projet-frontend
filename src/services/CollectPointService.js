@@ -6,6 +6,12 @@ export default {
   getAll() {
     return axios.get(API_URL)
   },
+  getByStatus(status) {
+    return axios.get(`${API_URL}?status=${encodeURIComponent(status)}`)
+  },
+  getByWasteType(type) {
+    return axios.get(`${API_URL}?wasteType=${encodeURIComponent(type)}`)
+  },
   create(point) {
     return axios.post(API_URL, point)
   },
