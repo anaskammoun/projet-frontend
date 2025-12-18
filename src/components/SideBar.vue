@@ -2,6 +2,7 @@
   <div class="sidebar-desktop d-flex flex-column">
     <div class="sidebar-header mb-4 text-center">
       <h3 class="text-white fw-bold">Gestion Déchets</h3>
+      <p class="text-secondary mb-0" v-if="role">Profil: {{ roleLabel }}</p>
     </div>
 
     <ul class="nav flex-column gap-2">
@@ -17,19 +18,19 @@
           <span>Points collecte</span>
         </router-link>
       </li>
-      <li>
+      <li v-if="isStaff">
         <router-link to="/employes" class="nav-link d-flex align-items-center" :class="{ active: $route.path === '/employes' }">
           <i class="bi bi-people me-2"></i>
           <span>Employés</span>
         </router-link>
       </li>
-      <li>
+      <li v-if="isStaff">
         <router-link to="/vehicules" class="nav-link d-flex align-items-center" :class="{ active: $route.path === '/vehicules' }">
           <i class="bi bi-truck me-2"></i>
           <span>Véhicules</span>
         </router-link>
       </li>
-      <li>
+      <li v-if="isStaff">
         <router-link to="/tournees" class="nav-link d-flex align-items-center" :class="{ active: $route.path === '/tournees' }">
           <i class="bi bi-route me-2"></i>
           <span>Tournées</span>
@@ -38,6 +39,22 @@
     </ul>
   </div>
 </template>
+
+<script setup>
+import { computed } from 'vue'
+import authService from '../services/auth.service.js'
+
+const role = computed(() => authService.getRole())
+const isStaff = computed(() => authService.hasRole('ADMIN', 'EMPLOYE'))
+const roleLabel = computed(() => {
+  switch ((role.value || '').toUpperCase()) {
+    case 'ADMIN': return 'Admin'
+    case 'EMPLOYE': return 'Employé'
+    case 'CITOYEN': return 'Citoyen'
+    default: return role.value
+  }
+})
+</script>
 
 <style scoped>
 .sidebar-desktop {

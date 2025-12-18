@@ -13,21 +13,21 @@ const routes = [
   { path: "/", redirect: "/dashboard" },
   { path: "/dashboard", component: Dashboard, meta: { requiresAuth: true } },
 
-  // Collect points - english and french aliases
+  // Collect points - english and french aliases (accessible to all authenticated roles)
   { path: "/collect-points", component: CollectPoints, meta: { requiresAuth: true } },
   { path: "/points", component: CollectPoints, meta: { requiresAuth: true } },
 
-  // Vehicles
-  { path: "/vehicles", component: Vehicles, meta: { requiresAuth: true } },
-  { path: "/vehicules", component: Vehicles, meta: { requiresAuth: true } },
+  // Vehicles - only admin or employe can gérer
+  { path: "/vehicles", component: Vehicles, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
+  { path: "/vehicules", component: Vehicles, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
 
-  // Employees
-  { path: "/employees", component: Employees, meta: { requiresAuth: true } },
-  { path: "/employes", component: Employees, meta: { requiresAuth: true } },
+  // Employees - only admin or employe
+  { path: "/employees", component: Employees, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
+  { path: "/employes", component: Employees, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
 
-  // Tours
-  { path: "/tours", component: Tours, meta: { requiresAuth: true } },
-  { path: "/tournees", component: Tours, meta: { requiresAuth: true } },
+  // Tours - only admin or employe
+  { path: "/tours", component: Tours, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
+  { path: "/tournees", component: Tours, meta: { requiresAuth: true, roles: ["ADMIN", "EMPLOYE"] } },
 
   // Auth
   { path: "/login", component: Login },
@@ -39,15 +39,26 @@ const router = createRouter({
   routes,
 });
 
-// Navigation guard to check authentication
+// Navigation guard to check authentication + roles
 router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !authService.isAuthenticated()) {
-    next('/login');
-  } else if ((to.path === '/login' || to.path === '/register') && authService.isAuthenticated()) {
-    next('/dashboard');
-  } else {
-    next();
+  const isAuth = authService.isAuthenticated()
+
+  if (to.meta.requiresAuth && !isAuth) {
+    return next('/login')
   }
+
+  if (isAuth && (to.path === '/login' || to.path === '/register')) {
+    return next('/dashboard')
+  }
+
+  if (to.meta.roles && to.meta.roles.length) {
+    if (!authService.hasRole(...to.meta.roles)) {
+      // fallback to dashboard if role not allowed
+      return next('/dashboard')
+    }
+  }
+
+  return next()
 });
 
 export default router;

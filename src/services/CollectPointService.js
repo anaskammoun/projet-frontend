@@ -1,28 +1,26 @@
-import axios from 'axios'
-
-const API_URL = 'http://localhost:8081/api/collect-points'
+import api from './api'
 
 export default {
   getAll() {
-    return axios.get(API_URL)
+    return api.get('/collect-points')
   },
   getByStatus(status) {
-    return axios.get(`${API_URL}?status=${encodeURIComponent(status)}`)
+    return api.get(`/collect-points?status=${encodeURIComponent(status)}`)
   },
   getByWasteType(type) {
-    return axios.get(`${API_URL}?wasteType=${encodeURIComponent(type)}`)
+    return api.get(`/collect-points?wasteType=${encodeURIComponent(type)}`)
   },
   create(point) {
-    return axios.post(API_URL, point)
+    return api.post('/collect-points', point)
   },
   update(id, point) {
-    return axios.put(`${API_URL}/${id}`, point)
+    return api.put(`/collect-points/${id}`, point)
   },
   delete(id) {
-    return axios.delete(`${API_URL}/${id}`)
+    return api.delete(`/collect-points/${id}`)
   },
   // ❗ Ajoute cette méthode pour planifier
   planifier() {
-    return axios.put(`${API_URL}/planifier`)
+    return api.put(`/collect-points/planifier`)
   }
 }

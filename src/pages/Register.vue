@@ -10,6 +10,15 @@
 				<label class="form-label">Mot de passe</label>
 				<input v-model="form.password" type="password" class="form-control" required />
 			</div>
+			<div class="mb-3">
+				<label class="form-label">Rôle</label>
+				<select v-model="form.role" class="form-select">
+					<option value="CITOYEN">Citoyen</option>
+					<option value="EMPLOYE">Employé</option>
+					<option value="ADMIN">Admin</option>
+				</select>
+				<small class="text-muted">Par défaut Citoyen si non choisi.</small>
+			</div>
 			<button class="btn btn-success" type="submit">S'inscrire</button>
 			<div class="mt-3 text-center">
 				<router-link to="/login" class="text-primary">Déjà un compte ? Se connecter</router-link>
@@ -24,7 +33,7 @@ import authService from '../services/auth.service.js'
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 
-const form = reactive({ email: '', password: '' })
+const form = reactive({ email: '', password: '', role: 'CITOYEN' })
 const router = useRouter()
 
 async function submit() {

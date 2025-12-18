@@ -3,7 +3,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2>Points de collecte</h2>
     <div>
-  <button type="button" class="btn btn-primary me-2" @click="openAdd">Ajouter</button>
+  <button v-if="isStaff" type="button" class="btn btn-primary me-2" @click="openAdd">Ajouter</button>
   <button type="button" v-if="!simulationRunning" class="btn btn-success" @click="startRealtimeUpdate">Démarrer simulation</button>
   <button type="button" v-else class="btn btn-danger" @click="stopRealtimeUpdate">Arrêter simulation</button>
 </div>
@@ -50,7 +50,7 @@
           <th>Niveau (%)</th>
           <th>Status</th>
           <th>Coordonnées</th>
-          <th>Action</th>
+          <th v-if="isStaff">Action</th>
         </tr>
       </thead>
       <tbody>
@@ -64,7 +64,7 @@
           <td>{{ formatNiveau(p) }}</td>
           <td>{{ computeStatus(p) }}</td>
           <td>{{ formatCoordinate(p.latitude) }},{{ formatCoordinate(p.longitude) }}</td>
-          <td>
+          <td v-if="isStaff">
             <button type="button" class="btn btn-sm btn-warning me-1" @click="openEdit(p)">Modifier</button>
             <button type="button" class="btn btn-sm btn-danger" @click="remove(p.id)">Supprimer</button>
           </td>
@@ -167,6 +167,7 @@
 import DashboardLayout from "../layouts/DashboardLayout.vue"
 import MapPickerModal from '../components/MapPickerModal.vue'
 import collecteService from "../services/CollectPointService.js"
+import authService from "../services/auth.service.js"
 import { ref, onMounted, onBeforeUnmount, computed } from "vue"
 
 const points = ref([])
@@ -188,6 +189,8 @@ const form = ref({
 })
 
 const showMapPicker = ref(false)
+
+const isStaff = computed(() => authService.hasRole('ADMIN', 'EMPLOYE'))
 
 const filteredPoints = computed(() => {
   const list = !searchQuery.value ? points.value : points.value.filter(p => {
