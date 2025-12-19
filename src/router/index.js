@@ -4,34 +4,38 @@ import CollectPoints from "../pages/CollectPoints.vue";
 import Vehicles from "../pages/Vehicles.vue";
 import Employees from "../pages/Employees.vue";
 import Tours from "../pages/Tours.vue";
-import Login from "../pages/Login.vue";
-import Register from "../pages/Register.vue";
-import authService from "../services/auth.service.js";
+import Employe from "../pages/Employe.vue";
+import Citoyen from "../pages/Citoyen.vue";
+import Logout from "../pages/Logout.vue";
+// Authentication removed; routes are now public.
 
 const routes = [
   // redirect root to dashboard for clarity
-  { path: "/", redirect: "/dashboard" },
-  { path: "/dashboard", component: Dashboard, meta: { requiresAuth: true } },
+  { path: "/", redirect: "/citoyen" },
+  { path: "/dashboard", component: Dashboard },
 
   // Collect points - english and french aliases
-  { path: "/collect-points", component: CollectPoints, meta: { requiresAuth: true } },
-  { path: "/points", component: CollectPoints, meta: { requiresAuth: true } },
+  { path: "/collect-points", component: CollectPoints },
+  { path: "/points", component: CollectPoints },
 
   // Vehicles
-  { path: "/vehicles", component: Vehicles, meta: { requiresAuth: true } },
-  { path: "/vehicules", component: Vehicles, meta: { requiresAuth: true } },
+  { path: "/vehicles", component: Vehicles },
+  { path: "/vehicules", component: Vehicles },
 
   // Employees
-  { path: "/employees", component: Employees, meta: { requiresAuth: true } },
-  { path: "/employes", component: Employees, meta: { requiresAuth: true } },
+  { path: "/employees", component: Employees },
+  { path: "/employes", component: Employees },
 
   // Tours
-  { path: "/tours", component: Tours, meta: { requiresAuth: true } },
-  { path: "/tournees", component: Tours, meta: { requiresAuth: true } },
+  { path: "/tours", component: Tours },
+  { path: "/tournees", component: Tours },
 
-  // Auth
-  { path: "/login", component: Login },
-  { path: "/register", component: Register },
+  // Role spaces
+  { path: "/employe", component: Employe },
+  { path: "/employé", component: Employe },
+  { path: "/citoyen", component: Citoyen },
+  { path: "/logout", component: Logout },
+  // Auth routes removed
 ];
 
 const router = createRouter({
@@ -39,15 +43,7 @@ const router = createRouter({
   routes,
 });
 
-// Navigation guard to check authentication
-router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !authService.isAuthenticated()) {
-    next('/login');
-  } else if ((to.path === '/login' || to.path === '/register') && authService.isAuthenticated()) {
-    next('/dashboard');
-  } else {
-    next();
-  }
-});
+// No auth guard; all routes are public now
+router.beforeEach((to, from, next) => next());
 
 export default router;

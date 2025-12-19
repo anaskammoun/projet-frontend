@@ -1,16 +1,13 @@
 import axios from "axios";
 
+// Use same-origin so nginx can inject X-Employee-Cin from auth_basic
 const api = axios.create({
-  baseURL: "http://localhost:8081/api",
+  baseURL: "/api",
   headers: {
     "Content-Type": "application/json"
   }
 });
 
-// Attach token if exists on app load
-const token = localStorage.getItem('app_token');
-if (token) {
-  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-}
+// Authentication removed: no Authorization header attached
 
 export default api;

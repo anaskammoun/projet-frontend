@@ -23,14 +23,12 @@
 
 <script setup>
 import NotificationBell from './NotificationBell.vue'
-import authService from '../services/auth.service.js'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
 function logout() {
-  authService.logout()
-  router.push('/login')
+  router.push('/logout')
 }
 </script>
 

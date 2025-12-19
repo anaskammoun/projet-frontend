@@ -23,17 +23,25 @@ import Footer from '../components/Footer.vue'
 <style scoped>
 .layout-root {
 	min-height: 100vh;
+	display: flex;
+	width: 100%;
 }
 
-/* Pushes content to the right so it doesn't go under the fixed sidebar */
 .content {
-	min-height: 100vh;
+	flex: 1;
 	display: flex;
 	flex-direction: column;
-	margin-left: 320px; /* Same width as your sidebar */
+	margin-left: 320px;
+	min-height: 100vh;
+	background: #f5f5f5;
 }
 
-/* Allows scrolling inside the main area */
+main {
+	flex: 1;
+	overflow: auto;
+	padding: 1.5rem;
+}
+
 .overflow-auto {
 	overflow: auto;
 }
